@@ -26,10 +26,24 @@ type Settings struct {
 type Status struct {
 	Connected    bool   `json:"connected"`
 	CurrentScene string `json:"currentScene"`
+	Recording    bool   `json:"recording"`
+	Streaming    bool   `json:"streaming"`
 }
 
 type Scene struct {
 	Name string `json:"name"`
+}
+
+type Source struct {
+	SceneName string `json:"sceneName"`
+	Name      string `json:"name"`
+	ID        int    `json:"id"`
+	Enabled   bool   `json:"enabled"`
+}
+
+type Event struct {
+	Type string          `json:"type"`
+	Data json.RawMessage `json:"data"`
 }
 
 type requestResponse struct {
@@ -54,11 +68,14 @@ type Client struct {
 	pending  map[string]chan requestResponse
 	sequence atomic.Uint64
 	closed   chan struct{}
+	events   chan Event
 }
 
 func NewClient() *Client {
-	return &Client{pending: make(map[string]chan requestResponse)}
+	return &Client{pending: make(map[string]chan requestResponse), events: make(chan Event, 64)}
 }
+
+func (c *Client) Events() <-chan Event { return c.events }
 
 func (c *Client) Connect(ctx context.Context, settings Settings) error {
 	c.Disconnect()
@@ -91,7 +108,7 @@ func (c *Client) Connect(ctx context.Context, settings Settings) error {
 		conn.Close()
 		return errors.New("resposta de saudação inválida do OBS")
 	}
-	identify := map[string]any{"rpcVersion": 1}
+	identify := map[string]any{"rpcVersion": 1, "eventSubscriptions": 0x7FFFFFFF}
 	if hello.D.Authentication != nil {
 		identify["authentication"] = authentication(settings.Password, hello.D.Authentication.Salt, hello.D.Authentication.Challenge)
 	}
@@ -153,7 +170,19 @@ func (c *Client) Status(ctx context.Context) (Status, error) {
 	if err := c.request(ctx, "GetCurrentProgramScene", nil, &data); err != nil {
 		return Status{Connected: c.Connected()}, err
 	}
-	return Status{Connected: true, CurrentScene: data.CurrentProgramSceneName}, nil
+	var record struct {
+		OutputActive bool `json:"outputActive"`
+	}
+	if err := c.request(ctx, "GetRecordStatus", nil, &record); err != nil {
+		return Status{Connected: true, CurrentScene: data.CurrentProgramSceneName}, err
+	}
+	var stream struct {
+		OutputActive bool `json:"outputActive"`
+	}
+	if err := c.request(ctx, "GetStreamStatus", nil, &stream); err != nil {
+		return Status{Connected: true, CurrentScene: data.CurrentProgramSceneName, Recording: record.OutputActive}, err
+	}
+	return Status{Connected: true, CurrentScene: data.CurrentProgramSceneName, Recording: record.OutputActive, Streaming: stream.OutputActive}, nil
 }
 
 func (c *Client) Scenes(ctx context.Context) ([]Scene, error) {
@@ -177,6 +206,62 @@ func (c *Client) SetScene(ctx context.Context, name string) error {
 		return errors.New("o nome da cena é obrigatório")
 	}
 	return c.request(ctx, "SetCurrentProgramScene", map[string]any{"sceneName": name}, nil)
+}
+
+func (c *Client) Sources(ctx context.Context, sceneName string) ([]Source, error) {
+	if sceneName == "" {
+		status, err := c.Status(ctx)
+		if err != nil {
+			return nil, err
+		}
+		sceneName = status.CurrentScene
+	}
+	var data struct {
+		SceneItems []struct {
+			SourceName       string `json:"sourceName"`
+			SceneItemID      int    `json:"sceneItemId"`
+			SceneItemEnabled bool   `json:"sceneItemEnabled"`
+		} `json:"sceneItems"`
+	}
+	if err := c.request(ctx, "GetSceneItemList", map[string]any{"sceneName": sceneName}, &data); err != nil {
+		return nil, err
+	}
+	sources := make([]Source, 0, len(data.SceneItems))
+	for _, item := range data.SceneItems {
+		sources = append(sources, Source{SceneName: sceneName, Name: item.SourceName, ID: item.SceneItemID, Enabled: item.SceneItemEnabled})
+	}
+	return sources, nil
+}
+
+func (c *Client) SetSourceVisible(ctx context.Context, sceneName, sourceName string, visible bool) error {
+	if sourceName == "" {
+		return errors.New("o nome da fonte é obrigatório")
+	}
+	sources, err := c.Sources(ctx, sceneName)
+	if err != nil {
+		return err
+	}
+	for _, source := range sources {
+		if source.Name == sourceName {
+			return c.request(ctx, "SetSceneItemEnabled", map[string]any{
+				"sceneName": source.SceneName, "sceneItemId": source.ID, "sceneItemEnabled": visible,
+			}, nil)
+		}
+	}
+	return fmt.Errorf("fonte %q não encontrada na cena", sourceName)
+}
+
+func (c *Client) StartRecording(ctx context.Context) error {
+	return c.request(ctx, "StartRecord", nil, nil)
+}
+func (c *Client) StopRecording(ctx context.Context) error {
+	return c.request(ctx, "StopRecord", nil, nil)
+}
+func (c *Client) StartStreaming(ctx context.Context) error {
+	return c.request(ctx, "StartStream", nil, nil)
+}
+func (c *Client) StopStreaming(ctx context.Context) error {
+	return c.request(ctx, "StopStream", nil, nil)
 }
 
 func (c *Client) request(ctx context.Context, requestType string, data any, output any) error {
@@ -230,6 +315,18 @@ func (c *Client) readLoop(conn *websocket.Conn) {
 			return
 		}
 		if message.Op != 7 {
+			if message.Op == 5 {
+				var event struct {
+					EventType string          `json:"eventType"`
+					EventData json.RawMessage `json:"eventData"`
+				}
+				if json.Unmarshal(message.D, &event) == nil {
+					select {
+					case c.events <- Event{Type: event.EventType, Data: event.EventData}:
+					default:
+					}
+				}
+			}
 			continue
 		}
 		var response requestResponse

@@ -44,6 +44,9 @@ func TestClientConnectsListsAndChangesScene(t *testing.T) {
 			if payload["requestType"] == "GetSceneList" {
 				responseData["scenes"] = []map[string]any{{"sceneName": "Abertura"}, {"sceneName": "Câmera"}}
 			}
+			if payload["requestType"] == "GetSceneItemList" {
+				responseData["sceneItems"] = []map[string]any{{"sourceName": "Logo", "sceneItemId": 7, "sceneItemEnabled": true}}
+			}
 			_ = conn.WriteJSON(map[string]any{"op": 7, "d": map[string]any{
 				"requestType": payload["requestType"], "requestId": payload["requestId"],
 				"requestStatus": map[string]any{"result": true, "code": 100}, "responseData": responseData,
@@ -65,6 +68,19 @@ func TestClientConnectsListsAndChangesScene(t *testing.T) {
 		t.Fatalf("cenas inesperadas: %+v, erro: %v", scenes, err)
 	}
 	if err := client.SetScene(context.Background(), "Abertura"); err != nil {
+		t.Fatal(err)
+	}
+	sources, err := client.Sources(context.Background(), "Abertura")
+	if err != nil || len(sources) != 1 || sources[0].Name != "Logo" || !sources[0].Enabled {
+		t.Fatalf("fontes inesperadas: %+v, erro: %v", sources, err)
+	}
+	if err := client.SetSourceVisible(context.Background(), "Abertura", "Logo", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.StartRecording(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.StopStreaming(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 }
