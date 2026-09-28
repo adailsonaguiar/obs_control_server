@@ -1,0 +1,13 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "obs-control-server",
+  "outputfilename": "obs-control-scaffold.ngvRLz",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Adailson Aguiar Campos Junior",
+    "email": "adailsonacj@live.com"
+  }
+}
