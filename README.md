@@ -1,310 +1,123 @@
-**Objetivo Da Aplicação**
+# OBS Control Server — MVP V1
 
-Criar uma aplicação servidora local para comunicação com o OBS Studio, executando em `localhost`, com uma interface desktop para gerenciamento básico do serviço.
+Aplicação desktop local para controlar cenas do OBS Studio por meio de uma API REST protegida. O app combina um backend Go, uma interface React + TypeScript em Wails e comunicação nativa com o protocolo obs-websocket 5.
 
-Exemplo de uso:
+## Escopo entregue
 
-```txt
-Aplicação Web / Mobile / Plugin
-        ↓
-Servidor Local em Go
-        ↓
-OBS Studio via obs-websocket
+- Aplicativo desktop Wails para macOS, Windows e Linux.
+- Servidor HTTP configurável, restrito a `127.0.0.1` na V1.
+- Inicialização, parada e reinicialização do servidor pela interface.
+- Token Bearer gerado automaticamente para proteger comandos.
+- Configuração persistente em JSON com permissão de arquivo `0600`.
+- Conexão, desconexão, teste e reconexão automática com o OBS.
+- Autenticação challenge/response do obs-websocket 5.
+- Consulta da cena atual, listagem de cenas e troca de cena.
+- Painel de status, tela de configurações e logs filtráveis.
+- Buffer limitado aos 500 eventos mais recentes da sessão.
+
+Gravação, transmissão, controle de fontes, acesso pela rede local, bandeja, macros e atalhos pertencem às versões seguintes e não fazem parte deste MVP.
+
+## Arquitetura
+
+```text
+React + TypeScript (Wails WebView)
+                │
+                ▼
+           App Go / Wails
+         ┌──────┴──────┐
+         ▼             ▼
+ API REST local    Cliente WebSocket
+ 127.0.0.1:3456    ws://localhost:4455
+         │             │
+  Apps locais       OBS Studio
 ```
 
-A aplicação ficaria instalada no computador onde o OBS está rodando.
+O backend está dividido em módulos pequenos:
 
-**Stack Sugerida**
+| Diretório | Responsabilidade |
+| --- | --- |
+| `internal/config` | validação e persistência atômica da configuração |
+| `internal/logs` | eventos em memória e filtros |
+| `internal/obs` | cliente obs-websocket 5 e autenticação |
+| `internal/server` | ciclo de vida e rotas da API REST |
+| `frontend/src` | interface desktop e integração com os bindings Wails |
 
-| Camada                   | Tecnologia               |
-| ------------------------ | ------------------------ |
-| Desktop app              | Wails                    |
-| Backend local            | Go                       |
-| Interface                | React + TypeScript       |
-| Comunicação com OBS      | obs-websocket            |
-| API local                | HTTP REST e/ou WebSocket |
-| Configuração persistente | JSON local ou SQLite     |
-| Build instalável         | Wails build              |
+## Requisitos
 
-**Funcionalidades Principais**
+- Go 1.23 ou superior.
+- Node.js 20 ou superior.
+- Wails CLI 2.15 ou superior.
+- OBS Studio com o servidor WebSocket habilitado em **Ferramentas → Configurações do servidor WebSocket**.
 
-1. **Servidor Local**
+## Desenvolvimento
 
-A aplicação deve iniciar um servidor local em uma porta configurável.
+Instale as dependências do frontend:
+
+```bash
+cd frontend
+npm install
+cd ..
+```
+
+Inicie o aplicativo em modo de desenvolvimento:
+
+```bash
+wails dev
+```
+
+O app cria a configuração na pasta de configurações do usuário, dentro de `obs-control-server/config.json`. A senha do OBS nunca é retornada para a interface: ela é exibida apenas como “senha salva” e um campo vazio preserva o valor atual.
+
+## API REST
+
+Por padrão, a API fica disponível em `http://127.0.0.1:3456`.
+
+| Método | Rota | Autenticação | Descrição |
+| --- | --- | --- | --- |
+| `GET` | `/health` | não | saúde do servidor local |
+| `GET` | `/obs/status` | Bearer | conexão e cena atual |
+| `GET` | `/obs/scenes` | Bearer | cenas disponíveis |
+| `POST` | `/obs/scene` | Bearer | troca a cena atual |
+| `POST` | `/server/restart` | Bearer | reinicia a API na mesma configuração |
 
 Exemplo:
 
-```txt
-http://localhost:3456
+```bash
+curl -X POST http://127.0.0.1:3456/obs/scene \
+  -H 'Authorization: Bearer SEU_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{"sceneName":"Camera Principal"}'
 ```
 
-Esse servidor pode expor endpoints para controlar o OBS:
+O token pode ser consultado e alterado na tela **Configurações** do aplicativo.
 
-```txt
-GET  /health
-POST /obs/connect
-POST /obs/disconnect
-POST /obs/scene
-POST /obs/source/hide
-POST /obs/recording/start
-POST /obs/recording/stop
-POST /obs/stream/start
-POST /obs/stream/stop
+## Testes e build
+
+Execute a suíte Go com detector de corridas:
+
+```bash
+go test ./... -race
 ```
 
-2. **Comunicação Com OBS Studio**
+Valide o frontend:
 
-A aplicação deve se conectar ao OBS usando o plugin nativo atual do OBS, o **obs-websocket**, que normalmente roda em:
-
-```txt
-ws://localhost:4455
+```bash
+npm --prefix frontend run build
 ```
 
-Configurações necessárias:
+Gere o aplicativo instalável da plataforma atual:
 
-| Campo         | Exemplo               |
-| ------------- | --------------------- |
-| Host OBS      | `localhost`           |
-| Porta OBS     | `4455`                |
-| Senha OBS     | senha definida no OBS |
-| Auto conectar | sim/não               |
-
-A aplicação deve conseguir:
-
-- Conectar e desconectar do OBS.
-- Verificar se o OBS está aberto.
-- Listar cenas.
-- Trocar cena ativa.
-- Listar fontes da cena.
-- Mostrar ou ocultar fonte.
-- Iniciar/parar gravação.
-- Iniciar/parar transmissão.
-- Consultar status atual do OBS.
-
-3. **Tela Principal**
-
-A tela inicial pode mostrar um painel simples:
-
-```txt
-Status do Servidor: Online
-Porta: 3456
-Status do OBS: Conectado
-Cena Atual: Culto Ao Vivo
-Gravação: Inativa
-Transmissão: Ativa
+```bash
+wails build
 ```
 
-Ações rápidas:
+Os testes usam servidores HTTP e WebSocket locais em portas efêmeras para validar autenticação, proteção da API e o fluxo completo de cenas sem exigir um OBS aberto.
 
-- Iniciar servidor
-- Parar servidor
-- Reiniciar servidor
-- Conectar ao OBS
-- Desconectar do OBS
-- Testar conexão
-- Abrir logs
+## Plano executado da V1
 
-4. **Tela De Configurações**
-
-Campos básicos:
-
-| Configuração                     | Descrição                                       |
-| -------------------------------- | ----------------------------------------------- |
-| Porta do servidor local          | Porta HTTP/WebSocket da aplicação               |
-| Iniciar servidor automaticamente | Sobe o servidor ao abrir o app                  |
-| Host do OBS                      | Normalmente `localhost`                         |
-| Porta do OBS                     | Normalmente `4455`                              |
-| Senha do OBS                     | Senha do obs-websocket                          |
-| Reconectar automaticamente       | Tentar reconectar caso o OBS feche              |
-| Permitir origem externa          | Define se aceita apenas localhost ou rede local |
-| Token de segurança               | Proteção para chamadas externas                 |
-
-Importante: por padrão, eu deixaria o servidor aceitando apenas chamadas de `localhost`, por segurança.
-
-5. **Tela De Logs**
-
-A aplicação deve ter uma área para acompanhar eventos:
-
-```txt
-[19:42:01] Servidor iniciado na porta 3456
-[19:42:05] Conectado ao OBS em localhost:4455
-[19:42:09] Cena alterada para "Abertura"
-[19:42:22] Gravação iniciada
-[19:44:10] Cliente externo conectado
-```
-
-Filtros úteis:
-
-- Todos
-- Servidor
-- OBS
-- Erros
-- Requisições
-
-6. **Segurança**
-
-Mesmo rodando localmente, é importante proteger a aplicação.
-
-Recomendações:
-
-- Por padrão, escutar apenas em `127.0.0.1`.
-- Permitir rede local somente se o usuário ativar.
-- Usar token/API key para chamadas HTTP.
-- Não exibir a senha do OBS em texto aberto.
-- Salvar senha de forma segura quando possível.
-- Bloquear comandos perigosos se não autenticado.
-
-Exemplo de chamada protegida:
-
-```http
-POST http://localhost:3456/obs/scene
-Authorization: Bearer MEU_TOKEN_LOCAL
-```
-
-Body:
-
-```json
-{
-  "sceneName": "Camera Principal"
-}
-```
-
-**Arquitetura Proposta**
-
-```mermaid
-flowchart TD
-    A["Interface Wails"] --> B["Serviço Go"]
-    B --> C["Servidor HTTP Local"]
-    B --> D["Cliente obs-websocket"]
-    C --> E["Apps externos"]
-    D --> F["OBS Studio"]
-```
-
-**Estrutura De Pastas Sugerida**
-
-```txt
-obs-local-server/
-├── frontend/
-│   ├── src/
-│   │   ├── pages/
-│   │   ├── components/
-│   │   └── services/
-├── internal/
-│   ├── config/
-│   ├── server/
-│   ├── obs/
-│   ├── logs/
-│   └── security/
-├── main.go
-├── app.go
-├── wails.json
-└── README.md
-```
-
-**Módulos Do Backend**
-
-| Módulo     | Responsabilidade                        |
-| ---------- | --------------------------------------- |
-| `config`   | Carregar e salvar configurações         |
-| `server`   | Subir/parar/reiniciar servidor HTTP     |
-| `obs`      | Conectar e controlar OBS via WebSocket  |
-| `logs`     | Registrar eventos da aplicação          |
-| `security` | Validar token/API key                   |
-| `app`      | Expor métodos Go para a interface Wails |
-
-**Fluxo Inicial Da Aplicação**
-
-1. Usuário abre o aplicativo.
-2. App carrega configurações salvas.
-3. Se `autoStartServer = true`, inicia servidor local.
-4. Se `autoConnectOBS = true`, tenta conectar ao OBS.
-5. Interface mostra status do servidor e do OBS.
-6. Usuário pode alterar porta, reiniciar servidor e testar conexão.
-
-**MVP Recomendado**
-
-Primeira versão com o essencial:
-
-- App desktop em Wails.
-- Tela principal com status.
-- Configuração de porta do servidor.
-- Botões start/stop/restart.
-- Configuração de host, porta e senha do OBS.
-- Teste de conexão com OBS.
-- Endpoint para trocar cena.
-- Logs básicos.
-
-Endpoints do MVP:
-
-```txt
-GET  /health
-GET  /obs/status
-GET  /obs/scenes
-POST /obs/scene
-POST /server/restart
-```
-
-**Versão 2**
-
-Depois do MVP, adicionar:
-
-- Controle de gravação.
-- Controle de transmissão.
-- Mostrar/ocultar fontes.
-- WebSocket para eventos em tempo real.
-- Autostart com o sistema operacional.
-- Minimizar para bandeja.
-- Controle via rede local.
-- Perfil de configuração por ambiente.
-
-**Versão 3**
-
-Recursos mais avançados:
-
-- Macros simples.
-- Atalhos globais.
-- Integração com Stream Deck.
-- Controle PTZ se a câmera suportar protocolo/IP.
-- Dashboard web local.
-- Permissões por token.
-- Histórico de comandos executados.
-
-**Exemplo De Configuração**
-
-```json
-{
-  "server": {
-    "host": "127.0.0.1",
-    "port": 3456,
-    "autoStart": true,
-    "allowLan": false,
-    "apiToken": "token-gerado-automaticamente"
-  },
-  "obs": {
-    "host": "localhost",
-    "port": 4455,
-    "password": "",
-    "autoConnect": true,
-    "autoReconnect": true
-  }
-}
-```
-
-**Prioridade De Desenvolvimento**
-
-1. Criar projeto Wails com React + TypeScript.
-2. Criar módulo de configuração local.
-3. Criar servidor HTTP em Go com start/stop/restart.
-4. Criar tela de configurações do servidor.
-5. Integrar com obs-websocket.
-6. Criar tela de conexão com OBS.
-7. Criar endpoints REST para comandos básicos.
-8. Criar sistema simples de logs.
-9. Gerar build instalável para Windows.
-10. Testar com OBS real rodando na máquina.
-
-**Resumo Do Produto**
-
-Você estaria criando uma espécie de **OBS Local Control Server**: um aplicativo instalável, leve, feito em Go + Wails, que roda junto com o OBS e permite que outras aplicações controlem cenas, fontes, gravação e transmissão por uma API local segura.
-
-Para o seu caso, eu começaria pelo MVP com **controle de cenas + servidor local configurável + conexão OBS**, porque isso já valida o coração da aplicação sem deixar o projeto grande demais logo no começo.
+1. Base Wails com React e TypeScript.
+2. Configuração persistente, defaults seguros e logs.
+3. Cliente obs-websocket 5 com autenticação e comandos de cena.
+4. Servidor REST local com token e ciclo start/stop/restart.
+5. Integração dos serviços ao ciclo de vida do desktop.
+6. Painel, configurações, cenas e visualização de logs.
+7. Testes unitários, testes locais de integração e build instalável.
