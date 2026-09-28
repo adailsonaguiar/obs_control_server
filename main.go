@@ -12,19 +12,25 @@ import (
 var assets embed.FS
 
 func main() {
-	// Create an instance of the app structure
-	app := NewApp()
+	app, err := NewApp()
+	if err != nil {
+		println("Erro ao iniciar:", err.Error())
+		return
+	}
 
 	// Create application with options
-	err := wails.Run(&options.App{
-		Title:  "obs-control-server",
-		Width:  1024,
-		Height: 768,
+	err = wails.Run(&options.App{
+		Title:     "OBS Control Server",
+		Width:     1180,
+		Height:    780,
+		MinWidth:  920,
+		MinHeight: 640,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		BackgroundColour: &options.RGBA{R: 9, G: 14, B: 20, A: 1},
 		OnStartup:        app.startup,
+		OnShutdown:       app.shutdown,
 		Bind: []interface{}{
 			app,
 		},
