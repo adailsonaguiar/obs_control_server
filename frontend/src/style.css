@@ -1,5 +1,5 @@
 @font-face { font-family: Inter; font-style: normal; font-weight: 100 900; src: local("Inter"), url("assets/fonts/nunito-v16-latin-regular.woff2") format("woff2"); }
-:root { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #e8edf2; background: #090e14; font-synthesis: none; }
+:root { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #eeeeee; background: #1f1f1f; font-synthesis: none; }
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; width: 100%; min-width: 880px; min-height: 100%; height: 100%; }
 button, input, select { font: inherit; } button { color: inherit; }
