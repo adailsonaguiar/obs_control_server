@@ -6,6 +6,14 @@ export function ConnectOBS() {
   return window['go']['main']['App']['ConnectOBS']();
 }
 
+export function CreateProfile(arg1) {
+  return window['go']['main']['App']['CreateProfile'](arg1);
+}
+
+export function DeleteProfile(arg1) {
+  return window['go']['main']['App']['DeleteProfile'](arg1);
+}
+
 export function DisconnectOBS() {
   return window['go']['main']['App']['DisconnectOBS']();
 }
@@ -26,6 +34,14 @@ export function GetSnapshot() {
   return window['go']['main']['App']['GetSnapshot']();
 }
 
+export function GetSources(arg1) {
+  return window['go']['main']['App']['GetSources'](arg1);
+}
+
+export function MinimizeToTray() {
+  return window['go']['main']['App']['MinimizeToTray']();
+}
+
 export function RestartServer() {
   return window['go']['main']['App']['RestartServer']();
 }
@@ -34,8 +50,20 @@ export function SaveConfig(arg1, arg2) {
   return window['go']['main']['App']['SaveConfig'](arg1, arg2);
 }
 
+export function SetRecording(arg1) {
+  return window['go']['main']['App']['SetRecording'](arg1);
+}
+
 export function SetScene(arg1) {
   return window['go']['main']['App']['SetScene'](arg1);
+}
+
+export function SetSourceVisible(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SetSourceVisible'](arg1, arg2, arg3);
+}
+
+export function SetStreaming(arg1) {
+  return window['go']['main']['App']['SetStreaming'](arg1);
 }
 
 export function StartServer() {
@@ -44,6 +72,10 @@ export function StartServer() {
 
 export function StopServer() {
   return window['go']['main']['App']['StopServer']();
+}
+
+export function SwitchProfile(arg1) {
+  return window['go']['main']['App']['SwitchProfile'](arg1);
 }
 
 export function TestOBS() {

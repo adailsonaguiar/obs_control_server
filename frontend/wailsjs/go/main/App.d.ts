@@ -6,6 +6,10 @@ import {obs} from '../models';
 
 export function ConnectOBS():Promise<void>;
 
+export function CreateProfile(arg1:string):Promise<void>;
+
+export function DeleteProfile(arg1:string):Promise<void>;
+
 export function DisconnectOBS():Promise<void>;
 
 export function GetConfig():Promise<main.ConfigView>;
@@ -16,14 +20,26 @@ export function GetScenes():Promise<Array<obs.Scene>>;
 
 export function GetSnapshot():Promise<main.Snapshot>;
 
+export function GetSources(arg1:string):Promise<Array<obs.Source>>;
+
+export function MinimizeToTray():Promise<void>;
+
 export function RestartServer():Promise<void>;
 
 export function SaveConfig(arg1:main.ConfigView,arg2:string):Promise<void>;
 
+export function SetRecording(arg1:boolean):Promise<void>;
+
 export function SetScene(arg1:string):Promise<void>;
+
+export function SetSourceVisible(arg1:string,arg2:string,arg3:boolean):Promise<void>;
+
+export function SetStreaming(arg1:boolean):Promise<void>;
 
 export function StartServer():Promise<void>;
 
 export function StopServer():Promise<void>;
+
+export function SwitchProfile(arg1:string):Promise<void>;
 
 export function TestOBS():Promise<void>;

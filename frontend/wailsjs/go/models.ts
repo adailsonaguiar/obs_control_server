@@ -1,9 +1,24 @@
 export namespace config {
-	
+
+	export class Application {
+	    launchAtLogin: boolean;
+	    minimizeToTray: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new Application(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.launchAtLogin = source["launchAtLogin"];
+	        this.minimizeToTray = source["minimizeToTray"];
+	    }
+	}
 	export class Server {
 	    host: string;
 	    port: number;
 	    autoStart: boolean;
+	    allowLan: boolean;
 	    apiToken: string;
 	
 	    static createFrom(source: any = {}) {
@@ -15,6 +30,7 @@ export namespace config {
 	        this.host = source["host"];
 	        this.port = source["port"];
 	        this.autoStart = source["autoStart"];
+	        this.allowLan = source["allowLan"];
 	        this.apiToken = source["apiToken"];
 	    }
 	}
@@ -69,11 +85,14 @@ export namespace main {
 	
 	export class ConfigView {
 	    server: config.Server;
+	    application: config.Application;
 	    obsHost: string;
 	    obsPort: number;
 	    autoConnect: boolean;
 	    autoReconnect: boolean;
 	    hasPassword: boolean;
+	    activeProfile: string;
+	    profileNames: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ConfigView(source);
@@ -82,11 +101,14 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.server = this.convertValues(source["server"], config.Server);
+	        this.application = this.convertValues(source["application"], config.Application);
 	        this.obsHost = source["obsHost"];
 	        this.obsPort = source["obsPort"];
 	        this.autoConnect = source["autoConnect"];
 	        this.autoReconnect = source["autoReconnect"];
 	        this.hasPassword = source["hasPassword"];
+	        this.activeProfile = source["activeProfile"];
+	        this.profileNames = source["profileNames"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -158,9 +180,29 @@ export namespace obs {
 	        this.name = source["name"];
 	    }
 	}
+	export class Source {
+	    sceneName: string;
+	    name: string;
+	    id: number;
+	    enabled: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new Source(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sceneName = source["sceneName"];
+	        this.name = source["name"];
+	        this.id = source["id"];
+	        this.enabled = source["enabled"];
+	    }
+	}
 	export class Status {
 	    connected: boolean;
 	    currentScene: string;
+	    recording: boolean;
+	    streaming: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Status(source);
@@ -170,8 +212,9 @@ export namespace obs {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.connected = source["connected"];
 	        this.currentScene = source["currentScene"];
+	        this.recording = source["recording"];
+	        this.streaming = source["streaming"];
 	    }
 	}
 
 }
-
