@@ -38,18 +38,20 @@ type App struct {
 	cancel    context.CancelFunc
 }
 
-func NewApp() (*App, error) {
-	store, err := config.NewStore("")
-	if err != nil {
-		return nil, err
-	}
+func NewApp() *App {
 	eventLogs := logs.New(500)
 	obsClient := obs.NewClient()
-	return &App{store: store, logs: eventLogs, obs: obsClient, server: server.New(obsClient, eventLogs)}, nil
+	return &App{logs: eventLogs, obs: obsClient, server: server.New(obsClient, eventLogs)}
 }
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	store, err := config.NewStore("")
+	if err != nil {
+		a.logs.Add("server", "error", fmt.Sprintf("Falha ao carregar configuração: %v", err))
+		return
+	}
+	a.store = store
 	reconnectContext, cancel := context.WithCancel(context.Background())
 	a.cancel = cancel
 	cfg := a.store.Get()
@@ -79,12 +81,17 @@ func (a *App) shutdown(context.Context) {
 }
 
 func (a *App) GetConfig() ConfigView {
+	if a.store == nil {
+		return configView(config.Default())
+	}
 	cfg := a.store.Get()
-	return ConfigView{Server: cfg.Server, OBSHost: cfg.OBS.Host, OBSPort: cfg.OBS.Port,
-		AutoConnect: cfg.OBS.AutoConnect, AutoReconnect: cfg.OBS.AutoReconnect, HasPassword: cfg.OBS.Password != ""}
+	return configView(cfg)
 }
 
 func (a *App) SaveConfig(view ConfigView, password string) error {
+	if a.store == nil {
+		return errors.New("armazenamento de configuração indisponível")
+	}
 	previous := a.store.Get()
 	updated := config.Config{Server: view.Server, OBS: config.OBS{Host: view.OBSHost, Port: view.OBSPort,
 		AutoConnect: view.AutoConnect, AutoReconnect: view.AutoReconnect, Password: password}}
@@ -110,7 +117,12 @@ func (a *App) GetSnapshot() Snapshot {
 	return Snapshot{ServerRunning: a.server.Running(), ServerAddress: a.server.Address(), OBS: status}
 }
 
-func (a *App) StartServer() error { return a.startServer(a.store.Get()) }
+func (a *App) StartServer() error {
+	if a.store == nil {
+		return errors.New("configuração indisponível")
+	}
+	return a.startServer(a.store.Get())
+}
 
 func (a *App) StopServer() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -119,12 +131,20 @@ func (a *App) StopServer() error {
 }
 
 func (a *App) RestartServer() error {
+	if a.store == nil {
+		return errors.New("configuração indisponível")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	return a.server.Restart(ctx, serverSettings(a.store.Get()))
 }
 
-func (a *App) ConnectOBS() error { return a.connectOBS(a.store.Get()) }
+func (a *App) ConnectOBS() error {
+	if a.store == nil {
+		return errors.New("configuração indisponível")
+	}
+	return a.connectOBS(a.store.Get())
+}
 
 func (a *App) DisconnectOBS() {
 	a.obs.Disconnect()
@@ -132,6 +152,9 @@ func (a *App) DisconnectOBS() {
 }
 
 func (a *App) TestOBS() error {
+	if a.store == nil {
+		return errors.New("configuração indisponível")
+	}
 	cfg := a.store.Get()
 	temporary := obs.NewClient()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -188,6 +211,9 @@ func (a *App) reconnectLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			if a.store == nil {
+				continue
+			}
 			cfg := a.store.Get()
 			if !cfg.OBS.AutoReconnect || a.obs.Connected() {
 				continue
@@ -205,4 +231,9 @@ func obsSettings(cfg config.Config) obs.Settings {
 
 func serverSettings(cfg config.Config) server.Settings {
 	return server.Settings{Host: cfg.Server.Host, Port: cfg.Server.Port, Token: cfg.Server.APIToken}
+}
+
+func configView(cfg config.Config) ConfigView {
+	return ConfigView{Server: cfg.Server, OBSHost: cfg.OBS.Host, OBSPort: cfg.OBS.Port,
+		AutoConnect: cfg.OBS.AutoConnect, AutoReconnect: cfg.OBS.AutoReconnect, HasPassword: cfg.OBS.Password != ""}
 }
