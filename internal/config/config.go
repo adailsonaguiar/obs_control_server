@@ -108,7 +108,7 @@ func NewStore(path string) (*Store, error) {
 func (s *Store) Get() Config {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.cfg
+	return clone(s.cfg)
 }
 
 func (s *Store) Save(cfg Config) error {
@@ -184,6 +184,7 @@ func normalizeForSave(cfg Config) Config {
 }
 
 func (c Config) WithActiveSettings(server Server, obs OBS) Config {
+	c = clone(c)
 	c.Server = server
 	c.OBS = obs
 	if c.Profiles == nil {
@@ -194,6 +195,7 @@ func (c Config) WithActiveSettings(server Server, obs OBS) Config {
 }
 
 func (c Config) SwitchProfile(name string) (Config, error) {
+	c = clone(c)
 	profile, ok := c.Profiles[name]
 	if !ok {
 		return c, fmt.Errorf("perfil %q não encontrado", name)
@@ -202,6 +204,15 @@ func (c Config) SwitchProfile(name string) (Config, error) {
 	c.Server = profile.Server
 	c.OBS = profile.OBS
 	return c, nil
+}
+
+func clone(cfg Config) Config {
+	profiles := make(map[string]Profile, len(cfg.Profiles))
+	for name, profile := range cfg.Profiles {
+		profiles[name] = profile
+	}
+	cfg.Profiles = profiles
+	return cfg
 }
 
 func newToken() string {
