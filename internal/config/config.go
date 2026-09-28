@@ -17,6 +17,7 @@ type Server struct {
 	Host      string `json:"host"`
 	Port      int    `json:"port"`
 	AutoStart bool   `json:"autoStart"`
+	AllowLAN  bool   `json:"allowLan"`
 	APIToken  string `json:"apiToken"`
 }
 
@@ -29,20 +30,41 @@ type OBS struct {
 }
 
 type Config struct {
+	Server        Server             `json:"server"`
+	OBS           OBS                `json:"obs"`
+	Application   Application        `json:"application"`
+	ActiveProfile string             `json:"activeProfile"`
+	Profiles      map[string]Profile `json:"profiles"`
+}
+
+type Application struct {
+	LaunchAtLogin  bool `json:"launchAtLogin"`
+	MinimizeToTray bool `json:"minimizeToTray"`
+}
+
+type Profile struct {
 	Server Server `json:"server"`
 	OBS    OBS    `json:"obs"`
 }
 
 func Default() Config {
-	return Config{
-		Server: Server{Host: "127.0.0.1", Port: 3456, AutoStart: true, APIToken: newToken()},
-		OBS:    OBS{Host: "localhost", Port: 4455, AutoConnect: true, AutoReconnect: true},
+	cfg := Config{
+		Server:        Server{Host: "127.0.0.1", Port: 3456, AutoStart: true, APIToken: newToken()},
+		OBS:           OBS{Host: "localhost", Port: 4455, AutoConnect: true, AutoReconnect: true},
+		Application:   Application{MinimizeToTray: true},
+		ActiveProfile: "Padrão",
 	}
+	cfg.Profiles = map[string]Profile{"Padrão": {Server: cfg.Server, OBS: cfg.OBS}}
+	return cfg
 }
 
 func (c Config) Validate() error {
-	if c.Server.Host != "127.0.0.1" && c.Server.Host != "localhost" {
-		return errors.New("a versão 1 aceita apenas conexões locais")
+	if c.Server.AllowLAN {
+		if c.Server.Host != "0.0.0.0" {
+			return errors.New("o acesso LAN deve escutar em 0.0.0.0")
+		}
+	} else if c.Server.Host != "127.0.0.1" && c.Server.Host != "localhost" {
+		return errors.New("sem acesso LAN, o servidor deve aceitar apenas conexões locais")
 	}
 	if c.Server.Port < 1 || c.Server.Port > 65535 {
 		return errors.New("a porta do servidor deve estar entre 1 e 65535")
@@ -55,6 +77,9 @@ func (c Config) Validate() error {
 	}
 	if c.OBS.Port < 1 || c.OBS.Port > 65535 {
 		return errors.New("a porta do OBS deve estar entre 1 e 65535")
+	}
+	if c.ActiveProfile == "" {
+		return errors.New("o perfil ativo é obrigatório")
 	}
 	return nil
 }
@@ -87,6 +112,7 @@ func (s *Store) Get() Config {
 }
 
 func (s *Store) Save(cfg Config) error {
+	cfg = normalizeForSave(cfg)
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
@@ -122,11 +148,60 @@ func (s *Store) load() error {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return fmt.Errorf("decodificar configuração: %w", err)
 	}
+	cfg = normalize(cfg)
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("configuração inválida: %w", err)
 	}
 	s.cfg = cfg
 	return nil
+}
+
+func normalize(cfg Config) Config {
+	if cfg.ActiveProfile == "" {
+		cfg.ActiveProfile = "Padrão"
+	}
+	if cfg.Profiles == nil {
+		cfg.Profiles = make(map[string]Profile)
+	}
+	if profile, ok := cfg.Profiles[cfg.ActiveProfile]; ok {
+		cfg.Server = profile.Server
+		cfg.OBS = profile.OBS
+	} else {
+		cfg.Profiles[cfg.ActiveProfile] = Profile{Server: cfg.Server, OBS: cfg.OBS}
+	}
+	return cfg
+}
+
+func normalizeForSave(cfg Config) Config {
+	if cfg.ActiveProfile == "" {
+		cfg.ActiveProfile = "Padrão"
+	}
+	if cfg.Profiles == nil {
+		cfg.Profiles = make(map[string]Profile)
+	}
+	cfg.Profiles[cfg.ActiveProfile] = Profile{Server: cfg.Server, OBS: cfg.OBS}
+	return cfg
+}
+
+func (c Config) WithActiveSettings(server Server, obs OBS) Config {
+	c.Server = server
+	c.OBS = obs
+	if c.Profiles == nil {
+		c.Profiles = make(map[string]Profile)
+	}
+	c.Profiles[c.ActiveProfile] = Profile{Server: server, OBS: obs}
+	return c
+}
+
+func (c Config) SwitchProfile(name string) (Config, error) {
+	profile, ok := c.Profiles[name]
+	if !ok {
+		return c, fmt.Errorf("perfil %q não encontrado", name)
+	}
+	c.ActiveProfile = name
+	c.Server = profile.Server
+	c.OBS = profile.OBS
+	return c, nil
 }
 
 func newToken() string {
