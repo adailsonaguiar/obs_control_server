@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
+	"obs-control-server/internal/events"
 	"obs-control-server/internal/logs"
 	"obs-control-server/internal/obs"
 )
@@ -19,6 +21,12 @@ type OBSController interface {
 	Status(context.Context) (obs.Status, error)
 	Scenes(context.Context) ([]obs.Scene, error)
 	SetScene(context.Context, string) error
+	Sources(context.Context, string) ([]obs.Source, error)
+	SetSourceVisible(context.Context, string, string, bool) error
+	StartRecording(context.Context) error
+	StopRecording(context.Context) error
+	StartStreaming(context.Context) error
+	StopStreaming(context.Context) error
 }
 
 type Settings struct {
@@ -34,10 +42,11 @@ type Manager struct {
 	settings Settings
 	obs      OBSController
 	logs     *logs.Buffer
+	events   *events.Hub
 }
 
 func New(controller OBSController, eventLogs *logs.Buffer) *Manager {
-	return &Manager{obs: controller, logs: eventLogs}
+	return &Manager{obs: controller, logs: eventLogs, events: events.New()}
 }
 
 func (m *Manager) Start(settings Settings) error {
@@ -56,8 +65,16 @@ func (m *Manager) Start(settings Settings) error {
 	mux.Handle("GET /obs/status", m.auth(http.HandlerFunc(m.obsStatus)))
 	mux.Handle("GET /obs/scenes", m.auth(http.HandlerFunc(m.obsScenes)))
 	mux.Handle("POST /obs/scene", m.auth(http.HandlerFunc(m.setScene)))
+	mux.Handle("GET /obs/sources", m.auth(http.HandlerFunc(m.obsSources)))
+	mux.Handle("POST /obs/source/show", m.auth(http.HandlerFunc(m.showSource)))
+	mux.Handle("POST /obs/source/hide", m.auth(http.HandlerFunc(m.hideSource)))
+	mux.Handle("POST /obs/recording/start", m.auth(http.HandlerFunc(m.startRecording)))
+	mux.Handle("POST /obs/recording/stop", m.auth(http.HandlerFunc(m.stopRecording)))
+	mux.Handle("POST /obs/stream/start", m.auth(http.HandlerFunc(m.startStreaming)))
+	mux.Handle("POST /obs/stream/stop", m.auth(http.HandlerFunc(m.stopStreaming)))
+	mux.HandleFunc("GET /events", m.eventStream)
 	mux.Handle("POST /server/restart", m.auth(http.HandlerFunc(m.restart)))
-	m.server = &http.Server{Handler: m.requestLogger(mux), ReadHeaderTimeout: 5 * time.Second}
+	m.server = &http.Server{Handler: m.cors(m.requestLogger(mux)), ReadHeaderTimeout: 5 * time.Second}
 	m.listener = listener
 	server := m.server
 	m.logs.Add("server", "info", fmt.Sprintf("Servidor iniciado em http://%s", listener.Addr()))
@@ -144,8 +161,110 @@ func (m *Manager) setScene(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 	m.logs.Add("obs", "info", fmt.Sprintf("Cena alterada para %q", body.SceneName))
+	m.Publish("obs.scene.changed", map[string]any{"sceneName": body.SceneName})
 	writeJSON(writer, http.StatusOK, map[string]any{"ok": true, "sceneName": body.SceneName})
 }
+
+func (m *Manager) obsSources(writer http.ResponseWriter, request *http.Request) {
+	sources, err := m.obs.Sources(request.Context(), request.URL.Query().Get("sceneName"))
+	if err != nil {
+		writeError(writer, http.StatusServiceUnavailable, err)
+		return
+	}
+	writeJSON(writer, http.StatusOK, map[string]any{"sources": sources})
+}
+
+func (m *Manager) showSource(writer http.ResponseWriter, request *http.Request) {
+	m.setSourceVisibility(writer, request, true)
+}
+
+func (m *Manager) hideSource(writer http.ResponseWriter, request *http.Request) {
+	m.setSourceVisibility(writer, request, false)
+}
+
+func (m *Manager) setSourceVisibility(writer http.ResponseWriter, request *http.Request, visible bool) {
+	var body struct {
+		SceneName  string `json:"sceneName"`
+		SourceName string `json:"sourceName"`
+	}
+	if err := decodeBody(writer, request, &body); err != nil || strings.TrimSpace(body.SourceName) == "" {
+		writeError(writer, http.StatusBadRequest, errors.New("informe sourceName"))
+		return
+	}
+	if err := m.obs.SetSourceVisible(request.Context(), body.SceneName, body.SourceName, visible); err != nil {
+		writeError(writer, http.StatusServiceUnavailable, err)
+		return
+	}
+	action := "ocultada"
+	if visible {
+		action = "exibida"
+	}
+	m.logs.Add("obs", "info", fmt.Sprintf("Fonte %q %s", body.SourceName, action))
+	m.Publish("obs.source.visibility", map[string]any{"sceneName": body.SceneName, "sourceName": body.SourceName, "visible": visible})
+	writeJSON(writer, http.StatusOK, map[string]any{"ok": true, "visible": visible})
+}
+
+func (m *Manager) startRecording(writer http.ResponseWriter, request *http.Request) {
+	m.outputCommand(writer, request, "gravação", true, m.obs.StartRecording, "obs.recording")
+}
+func (m *Manager) stopRecording(writer http.ResponseWriter, request *http.Request) {
+	m.outputCommand(writer, request, "gravação", false, m.obs.StopRecording, "obs.recording")
+}
+func (m *Manager) startStreaming(writer http.ResponseWriter, request *http.Request) {
+	m.outputCommand(writer, request, "transmissão", true, m.obs.StartStreaming, "obs.streaming")
+}
+func (m *Manager) stopStreaming(writer http.ResponseWriter, request *http.Request) {
+	m.outputCommand(writer, request, "transmissão", false, m.obs.StopStreaming, "obs.streaming")
+}
+
+func (m *Manager) outputCommand(writer http.ResponseWriter, request *http.Request, label string, active bool, command func(context.Context) error, eventType string) {
+	if err := command(request.Context()); err != nil {
+		writeError(writer, http.StatusServiceUnavailable, err)
+		return
+	}
+	state := "parada"
+	if active {
+		state = "iniciada"
+	}
+	m.logs.Add("obs", "info", fmt.Sprintf("%s %s", label, state))
+	m.Publish(eventType, map[string]any{"active": active})
+	writeJSON(writer, http.StatusOK, map[string]any{"ok": true, "active": active})
+}
+
+func (m *Manager) eventStream(writer http.ResponseWriter, request *http.Request) {
+	m.mu.RLock()
+	token := m.settings.Token
+	m.mu.RUnlock()
+	provided := request.URL.Query().Get("token")
+	if authorization := request.Header.Get("Authorization"); strings.HasPrefix(authorization, "Bearer ") {
+		provided = strings.TrimPrefix(authorization, "Bearer ")
+	}
+	if token == "" || provided != token {
+		writeError(writer, http.StatusUnauthorized, errors.New("token inválido ou ausente"))
+		return
+	}
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	connection, err := upgrader.Upgrade(writer, request, nil)
+	if err != nil {
+		return
+	}
+	defer connection.Close()
+	id, channel := m.events.Subscribe()
+	defer m.events.Unsubscribe(id)
+	m.logs.Add("requests", "info", "Cliente conectado ao WebSocket de eventos")
+	for {
+		select {
+		case event, ok := <-channel:
+			if !ok || connection.WriteJSON(event) != nil {
+				return
+			}
+		case <-request.Context().Done():
+			return
+		}
+	}
+}
+
+func (m *Manager) Publish(eventType string, data any) { m.events.Publish(eventType, data) }
 
 func (m *Manager) restart(writer http.ResponseWriter, _ *http.Request) {
 	m.mu.RLock()
@@ -180,6 +299,25 @@ func (m *Manager) requestLogger(next http.Handler) http.Handler {
 		m.logs.Add("requests", "info", fmt.Sprintf("%s %s", request.Method, request.URL.Path))
 		next.ServeHTTP(writer, request)
 	})
+}
+
+func (m *Manager) cors(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Access-Control-Allow-Origin", "*")
+		writer.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		if request.Method == http.MethodOptions {
+			writer.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(writer, request)
+	})
+}
+
+func decodeBody(writer http.ResponseWriter, request *http.Request, output any) error {
+	decoder := json.NewDecoder(http.MaxBytesReader(writer, request.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	return decoder.Decode(output)
 }
 
 func writeError(writer http.ResponseWriter, status int, err error) {

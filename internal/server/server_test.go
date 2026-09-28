@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
+	"obs-control-server/internal/events"
 	"obs-control-server/internal/logs"
 	"obs-control-server/internal/obs"
 )
@@ -21,6 +23,14 @@ func (f *fakeOBS) Scenes(context.Context) ([]obs.Scene, error) {
 	return []obs.Scene{{Name: "Abertura"}, {Name: "Câmera"}}, nil
 }
 func (f *fakeOBS) SetScene(_ context.Context, name string) error { f.scene = name; return nil }
+func (f *fakeOBS) Sources(context.Context, string) ([]obs.Source, error) {
+	return []obs.Source{{SceneName: "Abertura", Name: "Logo", ID: 7, Enabled: true}}, nil
+}
+func (f *fakeOBS) SetSourceVisible(context.Context, string, string, bool) error { return nil }
+func (f *fakeOBS) StartRecording(context.Context) error                         { return nil }
+func (f *fakeOBS) StopRecording(context.Context) error                          { return nil }
+func (f *fakeOBS) StartStreaming(context.Context) error                         { return nil }
+func (f *fakeOBS) StopStreaming(context.Context) error                          { return nil }
 
 func TestProtectedSceneWorkflow(t *testing.T) {
 	controller := &fakeOBS{scene: "Abertura"}
@@ -68,5 +78,34 @@ func TestHealthDoesNotRequireToken(t *testing.T) {
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("esperava 200, recebeu %d", response.StatusCode)
+	}
+}
+
+func TestEventsWebSocketRequiresTokenAndReceivesCommands(t *testing.T) {
+	manager := New(&fakeOBS{}, logs.New(20))
+	if err := manager.Start(Settings{Host: "127.0.0.1", Port: 0, Token: "secret"}); err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Stop(context.Background())
+	websocketURL := "ws://" + manager.Address() + "/events?token=secret"
+	connection, _, err := websocket.DefaultDialer.Dial(websocketURL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.Close()
+
+	request, _ := http.NewRequest(http.MethodPost, "http://"+manager.Address()+"/obs/recording/start", nil)
+	request.Header.Set("Authorization", "Bearer secret")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	var event events.Event
+	if err := connection.ReadJSON(&event); err != nil {
+		t.Fatal(err)
+	}
+	if event.Type != "obs.recording" {
+		t.Fatalf("evento inesperado: %+v", event)
 	}
 }
