@@ -1,13 +1,13 @@
 export namespace config {
-
+	
 	export class Application {
 	    launchAtLogin: boolean;
 	    minimizeToTray: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Application(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.launchAtLogin = source["launchAtLogin"];
@@ -185,11 +185,11 @@ export namespace obs {
 	    name: string;
 	    id: number;
 	    enabled: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Source(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.sceneName = source["sceneName"];
