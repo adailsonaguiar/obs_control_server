@@ -90,6 +90,14 @@ func (a *App) shutdown(context.Context) {
 	_ = a.server.Stop(ctx)
 }
 
+func (a *App) beforeClose(ctx context.Context) bool {
+	if a.store != nil && a.store.Get().Application.MinimizeToTray {
+		runtime.WindowHide(ctx)
+		return true
+	}
+	return false
+}
+
 func (a *App) GetConfig() ConfigView {
 	if a.store == nil {
 		return configView(config.Default())

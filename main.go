@@ -16,18 +16,18 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:             "OBS Control Server",
-		Width:             1180,
-		Height:            780,
-		MinWidth:          920,
-		MinHeight:         640,
-		HideWindowOnClose: true,
+		Title:     "OBS Control Server",
+		Width:     1180,
+		Height:    780,
+		MinWidth:  920,
+		MinHeight: 640,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 9, G: 14, B: 20, A: 1},
 		OnStartup:        app.startup,
 		OnShutdown:       app.shutdown,
+		OnBeforeClose:    app.beforeClose,
 		Bind: []interface{}{
 			app,
 		},
