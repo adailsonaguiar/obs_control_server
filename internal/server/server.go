@@ -252,6 +252,8 @@ func (m *Manager) eventStream(writer http.ResponseWriter, request *http.Request)
 	id, channel := m.events.Subscribe()
 	defer m.events.Unsubscribe(id)
 	m.logs.Add("requests", "info", "Cliente conectado ao WebSocket de eventos")
+	ping := time.NewTicker(20 * time.Second)
+	defer ping.Stop()
 	for {
 		select {
 		case event, ok := <-channel:
@@ -260,6 +262,10 @@ func (m *Manager) eventStream(writer http.ResponseWriter, request *http.Request)
 			}
 		case <-request.Context().Done():
 			return
+		case <-ping.C:
+			if connection.WriteControl(websocket.PingMessage, nil, time.Now().Add(3*time.Second)) != nil {
+				return
+			}
 		}
 	}
 }
