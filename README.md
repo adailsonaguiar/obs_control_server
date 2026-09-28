@@ -57,23 +57,101 @@ O backend está dividido em módulos pequenos:
 - Wails CLI 2.15 ou superior.
 - OBS Studio com o servidor WebSocket habilitado em **Ferramentas → Configurações do servidor WebSocket**.
 
-## Desenvolvimento
+## Executar localmente
 
-Instale as dependências do frontend:
+### 1. Preparar o ambiente
+
+Entre na pasta do projeto e confirme que Go, Node.js, npm e Wails estão disponíveis:
 
 ```bash
-cd frontend
-npm install
-cd ..
+cd obs_control_server
+go version
+node --version
+npm --version
+wails version
 ```
 
-Inicie o aplicativo em modo de desenvolvimento:
+Caso ainda não tenha o Wails CLI:
+
+```bash
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+```
+
+Use o diagnóstico do Wails para identificar dependências nativas ausentes na plataforma:
+
+```bash
+wails doctor
+```
+
+### 2. Instalar as dependências
+
+```bash
+go mod download
+npm --prefix frontend install
+```
+
+### 3. Configurar o OBS Studio
+
+1. Abra o OBS Studio.
+2. Acesse **Ferramentas → Configurações do servidor WebSocket**.
+3. Ative o servidor WebSocket.
+4. Mantenha a porta `4455` ou anote a porta escolhida.
+5. Defina uma senha e salve.
+
+### 4. Executar em desenvolvimento
+
+Com o OBS aberto, execute na raiz de `obs_control_server`:
 
 ```bash
 wails dev
 ```
 
-O app cria a configuração na pasta de configurações do usuário, dentro de `obs-control-server/config.json`. A senha do OBS nunca é retornada para a interface: ela é exibida apenas como “senha salva” e um campo vazio preserva o valor atual.
+Na interface do aplicativo, abra **Configurações** e informe:
+
+- Host do OBS: `localhost`.
+- Porta do OBS: `4455`.
+- Senha: a senha definida no OBS Studio.
+
+Salve, retorne ao painel e use **Testar conexão**. O servidor HTTP inicia por padrão em `http://127.0.0.1:3456`.
+
+### 5. Validar a API local
+
+O endpoint de saúde não exige autenticação:
+
+```bash
+curl http://127.0.0.1:3456/health
+```
+
+Copie o token exibido em **Configurações → Token da API** para testar uma rota protegida:
+
+```bash
+curl http://127.0.0.1:3456/obs/status \
+  -H 'Authorization: Bearer SEU_TOKEN'
+```
+
+### 6. Gerar e executar o bundle
+
+```bash
+wails build
+```
+
+O resultado é criado em `build/bin`. No macOS, por exemplo:
+
+```bash
+open build/bin/obs-control-server.app
+```
+
+No Linux ou Windows, execute o binário correspondente gerado dentro de `build/bin`.
+
+### Arquivos locais
+
+O aplicativo salva a configuração no diretório de configurações do usuário:
+
+- macOS: `~/Library/Application Support/obs-control-server/config.json`.
+- Linux: `~/.config/obs-control-server/config.json`.
+- Windows: `%AppData%\obs-control-server\config.json`.
+
+A senha do OBS nunca é retornada para a interface: ela aparece apenas como “senha salva”, e deixar o campo vazio preserva o valor atual. O arquivo de configuração é criado com permissão restrita ao usuário quando o sistema operacional oferece esse controle.
 
 ## API REST
 
