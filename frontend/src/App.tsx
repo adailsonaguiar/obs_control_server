@@ -1,12 +1,13 @@
 import {FormEvent, useCallback, useEffect, useState} from 'react'
 import {Environment} from '../wailsjs/runtime/runtime'
 import {api, Config, LogEntry, Scene, Snapshot, Source} from './api'
+import logo from './assets/images/logo.png'
 import './App.css'
 
 const emptySnapshot: Snapshot = {serverRunning: false, serverAddress: '', obs: {connected: false, currentScene: '', recording: false, streaming: false}}
 
 function App() {
-  const [tab, setTab] = useState<'dashboard' | 'settings' | 'logs'>('dashboard')
+  const [tab, setTab] = useState<'dashboard' | 'settings' | 'instructions' | 'logs'>('dashboard')
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot)
   const [config, setConfig] = useState<Config | null>(null)
   const [password, setPassword] = useState('')
@@ -86,16 +87,17 @@ function App() {
 
   return <><div className="window-titlebar" aria-hidden="true" /><div className="shell">
     <aside className="sidebar">
-      <div className="brand"><span className="brand-mark">OC</span><div><strong>OBS Remote Deck</strong><small>Local Server</small></div></div>
+      <div className="brand"><span className="brand-mark"><img src={logo} alt="" /></span><div><strong>OBS Remote Deck</strong><small>Local Server</small></div></div>
       <nav>
         <button className={tab === 'dashboard' ? 'active' : ''} onClick={() => setTab('dashboard')}><span>⌁</span>Painel</button>
         <button className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}><span>⚙</span>Configurações</button>
+        <button className={tab === 'instructions' ? 'active' : ''} onClick={() => setTab('instructions')}><span>?</span>Como conectar</button>
         <button className={tab === 'logs' ? 'active' : ''} onClick={() => setTab('logs')}><span>≡</span>Logs</button>
       </nav>
       <div className="sidebar-status"><i className={snapshot.serverRunning ? 'dot online' : 'dot'} /><div><strong>{snapshot.serverRunning ? 'Servidor online' : 'Servidor offline'}</strong><small>{snapshot.serverAddress || 'Sem endereço ativo'}</small></div></div>
     </aside>
     <main>
-      <header><div><p className="eyebrow">CONTROLE LOCAL</p><h1>{tab === 'dashboard' ? 'Painel de controle' : tab === 'settings' ? 'Configurações' : 'Logs da aplicação'}</h1></div><span className="secure">● Somente localhost</span></header>
+      <header><div><p className="eyebrow">CONTROLE LOCAL</p><h1>{tab === 'dashboard' ? 'Painel de controle' : tab === 'settings' ? 'Configurações' : tab === 'instructions' ? 'Como conectar ao OBS' : 'Logs da aplicação'}</h1></div><span className="secure">● Somente localhost</span></header>
       {notice && <div className={`notice ${notice.kind}`}>{notice.text}<button onClick={() => setNotice(null)}>×</button></div>}
 
       {tab === 'dashboard' && <>
@@ -146,6 +148,31 @@ function App() {
           <Toggle label="Continuar em segundo plano ao fechar" checked={config.application.minimizeToTray} onChange={value => setConfig({...config, application: {...config.application, minimizeToTray: value}})} />
         </div></section><div className="form-actions"><button className="primary" disabled={busy === 'save'}>Salvar configurações</button></div>
       </form>}
+
+      {tab === 'instructions' && <div className="instructions">
+        <section className="instructions-intro">
+          <div><p className="eyebrow">OBS WEBSOCKET 5</p><h2>Conecte o OBS em poucos passos</h2><p>O OBS Studio 28 ou mais recente já inclui o servidor WebSocket necessário. Mantenha o OBS aberto durante a configuração.</p></div>
+          <span className="version-badge">OBS 28+</span>
+        </section>
+
+        <ol className="instruction-steps">
+          <li><span className="step-number">1</span><div><h3>Abra as configurações do WebSocket</h3><p>No OBS Studio, acesse <strong>Ferramentas</strong> → <strong>Configurações do servidor WebSocket</strong>.</p><p className="platform-note">No macOS, o menu “Ferramentas” fica na barra de menus no topo da tela.</p></div></li>
+          <li><span className="step-number">2</span><div><h3>Ative o servidor</h3><p>Marque <strong>Ativar servidor WebSocket</strong>. Mantenha a porta padrão <code>4455</code>, salvo se ela já estiver sendo usada.</p></div></li>
+          <li><span className="step-number">3</span><div><h3>Copie a senha</h3><p>Mantenha <strong>Ativar autenticação</strong> selecionado. Clique em <strong>Mostrar informações de conexão</strong> para consultar e copiar a senha, ou defina uma nova.</p><div className="security-tip"><strong>Importante:</strong> não compartilhe essa senha; ela permite controlar cenas, gravações e transmissões do OBS.</div></div></li>
+          <li><span className="step-number">4</span><div><h3>Preencha os dados nesta aplicação</h3><div className="connection-values"><div><small>HOST</small><code>localhost</code></div><div><small>PORTA</small><code>4455</code></div><div><small>SENHA</small><code>A senha exibida no OBS</code></div></div><p>Se o OBS estiver em outro computador, use o endereço IP dele no lugar de <code>localhost</code> e permita a porta no firewall.</p></div></li>
+          <li><span className="step-number">5</span><div><h3>Salve e teste</h3><p>Abra as configurações, informe os dados e salve. Depois volte ao Painel e selecione <strong>Testar conexão</strong> ou <strong>Conectar ao OBS</strong>.</p><button className="primary instruction-action" type="button" onClick={() => setTab('settings')}>Abrir configurações</button></div></li>
+        </ol>
+
+        <section className="troubleshooting panel">
+          <PanelTitle title="Se a conexão não funcionar" detail="Confira estes pontos antes de tentar novamente." />
+          <div className="troubleshooting-grid">
+            <div><strong>Conexão recusada</strong><p>Confirme que o OBS está aberto, o servidor WebSocket está ativado e a porta é a mesma nos dois aplicativos.</p></div>
+            <div><strong>Falha de autenticação</strong><p>Copie novamente a senha do OBS. Ela diferencia maiúsculas, minúsculas e caracteres especiais.</p></div>
+            <div><strong>OBS em outro computador</strong><p>Use o IP local do computador do OBS, mantenha ambos na mesma rede e libere a porta no firewall.</p></div>
+            <div><strong>OBS anterior à versão 28</strong><p>Atualize o OBS ou instale manualmente uma versão compatível do plugin obs-websocket 5.</p></div>
+          </div>
+        </section>
+      </div>}
 
       {tab === 'logs' && <section className="panel logs-panel"><div className="panel-heading"><div><h2>Eventos recentes</h2><p>Até 500 eventos desta sessão.</p></div><select value={logFilter} onChange={e => setLogFilter(e.target.value)}><option value="all">Todos</option><option value="server">Servidor</option><option value="obs">OBS</option><option value="requests">Requisições</option><option value="errors">Erros</option></select></div>
         <div className="log-list">{logs.length ? [...logs].reverse().map(entry => <div className={`log ${entry.level}`} key={entry.id}><time>{new Date(entry.time).toLocaleTimeString('pt-BR')}</time><span>{entry.category}</span><p>{entry.message}</p></div>) : <div className="empty">Nenhum evento para este filtro.</div>}</div>

@@ -58,9 +58,11 @@
   place-items: center;
   font-size: 13px;
   font-weight: 800;
+  overflow: hidden;
   color: var(--text);
-  background: #404040;
+  background: #000000;
 }
+.brand-mark img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .brand div { display: flex; flex-direction: column; gap: 2px; }
 .brand strong { font-size: 15px; }
 .brand small { color: var(--muted); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
@@ -191,6 +193,42 @@ h1 { margin: 0; font-size: 26px; letter-spacing: -.02em; }
 .primary:hover:not(:disabled) { background: var(--accent-hover); }
 .lan-warning { grid-column: 1 / -1; margin: 0; padding: 10px; border: 1px solid #78643e; background: #403725; color: #e0cc9f; font-size: 10px; }
 
+.instructions { display: grid; gap: 12px; }
+.instructions-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 24px;
+  border: 1px solid #465d70;
+  border-radius: 3px;
+  background: linear-gradient(135deg, #29343d, #252b30);
+}
+.instructions-intro h2 { margin: 0 0 7px; font-size: 19px; }
+.instructions-intro > div > p:last-child { max-width: 680px; margin: 0; color: #b8c1c8; font-size: 12px; line-height: 1.55; }
+.version-badge { flex: 0 0 auto; padding: 7px 10px; border: 1px solid #5c7c94; border-radius: 3px; color: #c9e6fb; background: #344957; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
+.instruction-steps { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: 3px; background: var(--surface); }
+.instruction-steps > li { display: grid; grid-template-columns: 34px 1fr; gap: 14px; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.instruction-steps > li:last-child { border-bottom: 0; }
+.step-number { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid #557691; border-radius: 50%; color: #d7ecfc; background: #344957; font-size: 11px; font-weight: 800; }
+.instruction-steps h3 { margin: 3px 0 6px; font-size: 13px; }
+.instruction-steps p { margin: 0; color: #b0b0b0; font-size: 11px; line-height: 1.6; }
+.instruction-steps code { padding: 2px 5px; border: 1px solid #505050; border-radius: 2px; color: #d8eafa; background: #20252a; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; }
+.platform-note { margin-top: 5px !important; color: #9099a0 !important; }
+.security-tip { margin-top: 10px; padding: 9px 11px; border-left: 3px solid #aa8b4e; color: #d9c9a7; background: #393326; font-size: 10px; line-height: 1.5; }
+.connection-values { display: grid; grid-template-columns: 1fr 110px 1.4fr; gap: 7px; margin: 9px 0 8px; }
+.connection-values div { display: grid; gap: 6px; padding: 9px 10px; border: 1px solid #474f55; background: #24292d; }
+.connection-values small { color: #89949d; font-size: 8px; font-weight: 700; letter-spacing: .1em; }
+.connection-values code { width: fit-content; border: 0; padding: 0; background: transparent; }
+.instruction-action { margin-top: 12px; }
+.troubleshooting { margin-top: 0; }
+.troubleshooting-grid { display: grid; grid-template-columns: 1fr 1fr; }
+.troubleshooting-grid div { padding: 15px 18px; border-bottom: 1px solid #404040; }
+.troubleshooting-grid div:nth-child(odd) { border-right: 1px solid #404040; }
+.troubleshooting-grid div:nth-last-child(-n + 2) { border-bottom: 0; }
+.troubleshooting-grid strong { font-size: 11px; }
+.troubleshooting-grid p { margin: 5px 0 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
+
 .logs-panel select { padding: 7px 10px; }
 .log-list { max-height: calc(100vh - 195px); overflow: auto; }
 .log { display: grid; grid-template-columns: 70px 90px 1fr; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid #404040; font-size: 11px; }
@@ -209,4 +247,5 @@ h1 { margin: 0; font-size: 26px; letter-spacing: -.02em; }
   main { padding: 28px 25px; }
   .status-grid { grid-template-columns: 1fr; }
   .actions, .scene-list { grid-template-columns: repeat(2, 1fr); }
+  .connection-values { grid-template-columns: 1fr; }
 }
