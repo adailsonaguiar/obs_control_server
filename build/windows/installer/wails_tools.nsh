@@ -5,7 +5,7 @@
 !include "FileFunc.nsh"
 
 !ifndef INFO_PROJECTNAME
-    !define INFO_PROJECTNAME "obs-control-server"
+    !define INFO_PROJECTNAME "OBS Remote Deck"
 !endif
 !ifndef INFO_COMPANYNAME
     !define INFO_COMPANYNAME "Verolab Soluções em Tecnologia"
