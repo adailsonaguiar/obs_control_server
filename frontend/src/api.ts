@@ -17,5 +17,12 @@ type Backend = {
   CreateProfile(name: string): Promise<void>; SwitchProfile(name: string): Promise<void>; DeleteProfile(name: string): Promise<void>
   MinimizeToTray(): Promise<void>; GetLogs(category: string): Promise<LogEntry[]>; GetVersion(): Promise<string>
 }
-declare global { interface Window { go: { main: { App: Backend } } } }
-export const api = () => window.go.main.App
+declare global { interface Window { go?: { main?: { App?: Backend } } } }
+
+const unavailableMessage = 'O backend nativo não está disponível. Abra esta interface pelo aplicativo OBS Remote Deck ou execute com “wails dev”.'
+const unavailableBackend = new Proxy({} as Backend, {
+  get: () => () => Promise.reject(new Error(unavailableMessage)),
+})
+
+export const backendAvailable = () => Boolean(window.go?.main?.App)
+export const api = (): Backend => window.go?.main?.App ?? unavailableBackend

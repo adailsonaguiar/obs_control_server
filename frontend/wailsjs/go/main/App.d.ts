@@ -26,6 +26,8 @@ export function GetVersion():Promise<string>;
 
 export function MinimizeToTray():Promise<void>;
 
+export function MovePTZ(arg1:string,arg2:number,arg3:string,arg4:number):Promise<void>;
+
 export function RestartServer():Promise<void>;
 
 export function SaveConfig(arg1:main.ConfigView,arg2:string):Promise<void>;
@@ -45,3 +47,5 @@ export function StopServer():Promise<void>;
 export function SwitchProfile(arg1:string):Promise<void>;
 
 export function TestOBS():Promise<void>;
+
+export function ZoomPTZ(arg1:string,arg2:number,arg3:string,arg4:number):Promise<void>;

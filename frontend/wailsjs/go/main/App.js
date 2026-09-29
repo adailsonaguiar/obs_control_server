@@ -46,6 +46,10 @@ export function MinimizeToTray() {
   return window['go']['main']['App']['MinimizeToTray']();
 }
 
+export function MovePTZ(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['MovePTZ'](arg1, arg2, arg3, arg4);
+}
+
 export function RestartServer() {
   return window['go']['main']['App']['RestartServer']();
 }
@@ -84,4 +88,8 @@ export function SwitchProfile(arg1) {
 
 export function TestOBS() {
   return window['go']['main']['App']['TestOBS']();
+}
+
+export function ZoomPTZ(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['ZoomPTZ'](arg1, arg2, arg3, arg4);
 }

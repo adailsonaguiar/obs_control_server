@@ -1,6 +1,6 @@
 import {FormEvent, useCallback, useEffect, useState} from 'react'
 import {Environment} from '../wailsjs/runtime/runtime'
-import {api, Config, LogEntry, Scene, Snapshot, Source} from './api'
+import {api, backendAvailable, Config, LogEntry, Scene, Snapshot, Source} from './api'
 import logo from './assets/images/logo.png'
 import './App.css'
 
@@ -53,9 +53,16 @@ function App() {
       }
     } catch (error) { setNotice({kind: 'error', text: String(error)}) }
   }, [])
-  const refreshLogs = useCallback(async () => setLogs(await api().GetLogs(logFilter)), [logFilter])
+  const refreshLogs = useCallback(async () => {
+    try { setLogs(await api().GetLogs(logFilter)) }
+    catch (error) { if (backendAvailable()) setNotice({kind: 'error', text: String(error)}) }
+  }, [logFilter])
 
   useEffect(() => {
+    if (!backendAvailable()) {
+      setNotice({kind: 'error', text: 'Backend nativo indisponível. Abra esta tela pelo aplicativo OBS Remote Deck ou use “wails dev”.'})
+      return
+    }
     api().GetConfig().then(setConfig).catch(error => setNotice({kind: 'error', text: String(error)}))
     api().GetVersion().then(setVersion).catch(() => undefined)
     refresh()
@@ -63,6 +70,7 @@ function App() {
     return () => window.clearInterval(timer)
   }, [refresh])
   useEffect(() => {
+    if (!backendAvailable()) return
     refreshLogs()
     const timer = window.setInterval(refreshLogs, 2000)
     return () => window.clearInterval(timer)
