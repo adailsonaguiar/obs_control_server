@@ -29,6 +29,14 @@ type OBSController interface {
 	StopRecording(context.Context) error
 	StartStreaming(context.Context) error
 	StopStreaming(context.Context) error
+	Telemetry(context.Context) (obs.Telemetry, error)
+	AudioInputs(context.Context) ([]obs.AudioInput, error)
+	SetInputMute(context.Context, string, bool) error
+	SetInputVolume(context.Context, string, float64) error
+	StudioMode(context.Context) (obs.StudioMode, error)
+	SetPreviewScene(context.Context, string) error
+	SetTransitionDuration(context.Context, int) error
+	TriggerTransition(context.Context) error
 }
 
 type Settings struct {
@@ -45,10 +53,28 @@ type Manager struct {
 	obs      OBSController
 	logs     *logs.Buffer
 	events   *events.Hub
+	commands map[string]cachedResponse
+	audit    []AuditEvent
+}
+
+type cachedResponse struct {
+	Status    int
+	Header    http.Header
+	Body      []byte
+	CreatedAt time.Time
+}
+
+type AuditEvent struct {
+	ID        uint64    `json:"id"`
+	Time      time.Time `json:"time"`
+	Actor     string    `json:"actor"`
+	Action    string    `json:"action"`
+	CommandID string    `json:"commandId,omitempty"`
+	Result    string    `json:"result"`
 }
 
 func New(controller OBSController, eventLogs *logs.Buffer) *Manager {
-	return &Manager{obs: controller, logs: eventLogs, events: events.New()}
+	return &Manager{obs: controller, logs: eventLogs, events: events.New(), commands: make(map[string]cachedResponse)}
 }
 
 func (m *Manager) Start(settings Settings) error {
@@ -75,9 +101,17 @@ func (m *Manager) Start(settings Settings) error {
 	mux.Handle("POST /obs/recording/stop", m.auth(http.HandlerFunc(m.stopRecording)))
 	mux.Handle("POST /obs/stream/start", m.auth(http.HandlerFunc(m.startStreaming)))
 	mux.Handle("POST /obs/stream/stop", m.auth(http.HandlerFunc(m.stopStreaming)))
+	mux.Handle("GET /api/v1/telemetry", m.auth(http.HandlerFunc(m.telemetry)))
+	mux.Handle("GET /api/v1/audio/inputs", m.auth(http.HandlerFunc(m.audioInputs)))
+	mux.Handle("PATCH /api/v1/audio/inputs/{name}", m.auth(http.HandlerFunc(m.updateAudioInput)))
+	mux.Handle("GET /api/v1/studio-mode", m.auth(http.HandlerFunc(m.studioMode)))
+	mux.Handle("POST /api/v1/studio-mode/preview", m.auth(http.HandlerFunc(m.setPreviewScene)))
+	mux.Handle("POST /api/v1/transitions", m.auth(http.HandlerFunc(m.transition)))
+	mux.Handle("GET /api/v1/diagnostics", m.auth(http.HandlerFunc(m.diagnostics)))
+	mux.Handle("GET /api/v1/audit-events", m.auth(http.HandlerFunc(m.auditEvents)))
 	mux.HandleFunc("GET /events", m.eventStream)
 	mux.Handle("POST /server/restart", m.auth(http.HandlerFunc(m.restart)))
-	m.server = &http.Server{Handler: m.cors(m.requestLogger(mux)), ReadHeaderTimeout: 5 * time.Second}
+	m.server = &http.Server{Handler: m.cors(m.requestLogger(m.idempotent(mux))), ReadHeaderTimeout: 5 * time.Second}
 	m.listener = listener
 	server := m.server
 	m.logs.Add("server", "info", fmt.Sprintf("Servidor iniciado em http://%s", listener.Addr()))
@@ -260,7 +294,126 @@ func (m *Manager) outputCommand(writer http.ResponseWriter, request *http.Reques
 	}
 	m.logs.Add("obs", "info", fmt.Sprintf("%s %s", label, state))
 	m.Publish(eventType, map[string]any{"active": active})
-	writeJSON(writer, http.StatusOK, map[string]any{"ok": true, "active": active})
+	writeJSON(writer, http.StatusOK, map[string]any{"ok": true, "active": active, "commandId": request.Header.Get("Idempotency-Key"), "status": "confirmed", "confirmedAt": time.Now()})
+}
+
+func (m *Manager) telemetry(writer http.ResponseWriter, request *http.Request) {
+	data, err := m.obs.Telemetry(request.Context())
+	if err != nil {
+		writeError(writer, http.StatusServiceUnavailable, err)
+		return
+	}
+	writeJSON(writer, http.StatusOK, data)
+}
+
+func (m *Manager) audioInputs(writer http.ResponseWriter, request *http.Request) {
+	inputs, err := m.obs.AudioInputs(request.Context())
+	if err != nil {
+		writeError(writer, http.StatusServiceUnavailable, err)
+		return
+	}
+	writeJSON(writer, http.StatusOK, map[string]any{"inputs": inputs})
+}
+
+func (m *Manager) updateAudioInput(writer http.ResponseWriter, request *http.Request) {
+	name := request.PathValue("name")
+	var body struct {
+		Muted    *bool    `json:"muted"`
+		VolumeDB *float64 `json:"volumeDb"`
+	}
+	if name == "" || decodeBody(writer, request, &body) != nil || (body.Muted == nil && body.VolumeDB == nil) {
+		writeError(writer, http.StatusBadRequest, errors.New("informe muted ou volumeDb"))
+		return
+	}
+	if body.Muted != nil {
+		if err := m.obs.SetInputMute(request.Context(), name, *body.Muted); err != nil {
+			writeError(writer, http.StatusServiceUnavailable, err)
+			return
+		}
+	}
+	if body.VolumeDB != nil {
+		if err := m.obs.SetInputVolume(request.Context(), name, *body.VolumeDB); err != nil {
+			writeError(writer, http.StatusServiceUnavailable, err)
+			return
+		}
+	}
+	m.Publish("obs.audio.changed", map[string]any{"inputName": name})
+	writeJSON(writer, http.StatusOK, map[string]any{"ok": true, "commandId": request.Header.Get("Idempotency-Key"), "status": "confirmed"})
+}
+
+func (m *Manager) studioMode(writer http.ResponseWriter, request *http.Request) {
+	data, err := m.obs.StudioMode(request.Context())
+	if err != nil {
+		writeError(writer, http.StatusServiceUnavailable, err)
+		return
+	}
+	writeJSON(writer, http.StatusOK, data)
+}
+
+func (m *Manager) setPreviewScene(writer http.ResponseWriter, request *http.Request) {
+	var body struct {
+		SceneName string `json:"sceneName"`
+	}
+	if decodeBody(writer, request, &body) != nil || strings.TrimSpace(body.SceneName) == "" {
+		writeError(writer, http.StatusBadRequest, errors.New("informe sceneName"))
+		return
+	}
+	if err := m.obs.SetPreviewScene(request.Context(), body.SceneName); err != nil {
+		writeError(writer, http.StatusServiceUnavailable, err)
+		return
+	}
+	m.Publish("obs.studio.preview", body)
+	writeJSON(writer, http.StatusOK, map[string]any{"ok": true, "status": "confirmed", "commandId": request.Header.Get("Idempotency-Key")})
+}
+
+func (m *Manager) transition(writer http.ResponseWriter, request *http.Request) {
+	var body struct {
+		Duration int `json:"duration"`
+	}
+	if decodeBody(writer, request, &body) != nil {
+		writeError(writer, http.StatusBadRequest, errors.New("payload inválido"))
+		return
+	}
+	if body.Duration > 0 {
+		if err := m.obs.SetTransitionDuration(request.Context(), body.Duration); err != nil {
+			writeError(writer, http.StatusServiceUnavailable, err)
+			return
+		}
+	}
+	if err := m.obs.TriggerTransition(request.Context()); err != nil {
+		writeError(writer, http.StatusServiceUnavailable, err)
+		return
+	}
+	m.Publish("obs.studio.transition", map[string]any{"duration": body.Duration})
+	writeJSON(writer, http.StatusOK, map[string]any{"ok": true, "status": "confirmed", "commandId": request.Header.Get("Idempotency-Key")})
+}
+
+func (m *Manager) diagnostics(writer http.ResponseWriter, request *http.Request) {
+	now := time.Now()
+	status, err := m.obs.Status(request.Context())
+	obsState, obsMessage := "healthy", "OBS conectado e respondendo"
+	if err != nil || !status.Connected {
+		obsState, obsMessage = "critical", "OBS desconectado; verifique o aplicativo e o obs-websocket"
+	}
+	streamState, streamMessage := "no-data", "Transmissão não iniciada"
+	if status.Streaming {
+		streamState, streamMessage = "healthy", "Saída de streaming ativa"
+	}
+	links := []map[string]any{
+		{"id": "panel", "label": "Painel", "state": "healthy", "lastSeen": now, "message": "Requisição autenticada recebida"},
+		{"id": "service", "label": "Serviço local", "state": "healthy", "lastSeen": now, "message": "API local em execução"},
+		{"id": "agent", "label": "Agente no computador", "state": "healthy", "lastSeen": now, "message": "Agente local disponível"},
+		{"id": "obs", "label": "OBS Studio", "state": obsState, "lastSeen": now, "message": obsMessage},
+		{"id": "stream", "label": "Plataforma de streaming", "state": streamState, "lastSeen": now, "message": streamMessage},
+	}
+	writeJSON(writer, http.StatusOK, map[string]any{"generatedAt": now, "links": links})
+}
+
+func (m *Manager) auditEvents(writer http.ResponseWriter, _ *http.Request) {
+	m.mu.RLock()
+	entries := append([]AuditEvent(nil), m.audit...)
+	m.mu.RUnlock()
+	writeJSON(writer, http.StatusOK, map[string]any{"events": entries})
 }
 
 func (m *Manager) eventStream(writer http.ResponseWriter, request *http.Request) {
@@ -339,11 +492,84 @@ func (m *Manager) requestLogger(next http.Handler) http.Handler {
 	})
 }
 
+type responseRecorder struct {
+	http.ResponseWriter
+	status int
+	body   []byte
+}
+
+func (r *responseRecorder) WriteHeader(status int) {
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
+}
+func (r *responseRecorder) Write(body []byte) (int, error) {
+	if r.status == 0 {
+		r.status = http.StatusOK
+	}
+	r.body = append(r.body, body...)
+	return r.ResponseWriter.Write(body)
+}
+
+func (m *Manager) idempotent(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost && request.Method != http.MethodPatch {
+			next.ServeHTTP(writer, request)
+			return
+		}
+		key := strings.TrimSpace(request.Header.Get("Idempotency-Key"))
+		if key != "" {
+			m.mu.RLock()
+			cached, found := m.commands[key]
+			m.mu.RUnlock()
+			if found {
+				for name, values := range cached.Header {
+					for _, value := range values {
+						writer.Header().Add(name, value)
+					}
+				}
+				writer.Header().Set("Idempotency-Replayed", "true")
+				writer.WriteHeader(cached.Status)
+				_, _ = writer.Write(cached.Body)
+				return
+			}
+		}
+		recorder := &responseRecorder{ResponseWriter: writer}
+		next.ServeHTTP(recorder, request)
+		if recorder.status == 0 {
+			recorder.status = http.StatusOK
+		}
+		result := "confirmed"
+		if recorder.status >= 400 {
+			result = "failed"
+		}
+		actor := request.RemoteAddr
+		if host, _, err := net.SplitHostPort(actor); err == nil {
+			actor = host
+		}
+		m.mu.Lock()
+		if key != "" && recorder.status < 500 {
+			m.commands[key] = cachedResponse{Status: recorder.status, Header: recorder.Header().Clone(), Body: append([]byte(nil), recorder.body...), CreatedAt: time.Now()}
+			if len(m.commands) > 500 {
+				for id, response := range m.commands {
+					if time.Since(response.CreatedAt) > 10*time.Minute {
+						delete(m.commands, id)
+					}
+				}
+			}
+		}
+		m.audit = append(m.audit, AuditEvent{ID: uint64(len(m.audit) + 1), Time: time.Now(), Actor: actor, Action: request.Method + " " + request.URL.Path, CommandID: key, Result: result})
+		if len(m.audit) > 500 {
+			m.audit = append([]AuditEvent(nil), m.audit[len(m.audit)-500:]...)
+		}
+		m.mu.Unlock()
+	})
+}
+
 func (m *Manager) cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Access-Control-Allow-Origin", "*")
-		writer.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-		writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		writer.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key")
+		writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
 		if request.Method == http.MethodOptions {
 			writer.WriteHeader(http.StatusNoContent)
 			return

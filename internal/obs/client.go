@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"strings"
 	"sync"
@@ -42,6 +43,41 @@ type Source struct {
 	Enabled   bool   `json:"enabled"`
 }
 
+type Telemetry struct {
+	Streaming              bool    `json:"streaming"`
+	StreamDuration         int64   `json:"streamDurationMs"`
+	StreamBytes            int64   `json:"streamBytes"`
+	StreamCongestion       float64 `json:"streamCongestion"`
+	Recording              bool    `json:"recording"`
+	RecordDuration         int64   `json:"recordDurationMs"`
+	RecordBytes            int64   `json:"recordBytes"`
+	CPUUsage               float64 `json:"cpuUsage"`
+	ActiveFPS              float64 `json:"activeFps"`
+	AverageFrameRenderTime float64 `json:"averageFrameRenderTime"`
+	RenderSkippedFrames    uint64  `json:"renderSkippedFrames"`
+	RenderTotalFrames      uint64  `json:"renderTotalFrames"`
+	OutputSkippedFrames    uint64  `json:"outputSkippedFrames"`
+	OutputTotalFrames      uint64  `json:"outputTotalFrames"`
+}
+
+type AudioInput struct {
+	Name        string  `json:"name"`
+	Kind        string  `json:"kind"`
+	Muted       bool    `json:"muted"`
+	VolumeDB    float64 `json:"volumeDb"`
+	VolumeMul   float64 `json:"volumeMul"`
+	LevelDB     float64 `json:"levelDb"`
+	LevelStatus string  `json:"levelStatus"`
+}
+
+type StudioMode struct {
+	Enabled            bool   `json:"enabled"`
+	ProgramScene       string `json:"programScene"`
+	PreviewScene       string `json:"previewScene"`
+	TransitionName     string `json:"transitionName"`
+	TransitionDuration int    `json:"transitionDuration"`
+}
+
 type Event struct {
 	Type string          `json:"type"`
 	Data json.RawMessage `json:"data"`
@@ -70,10 +106,11 @@ type Client struct {
 	sequence atomic.Uint64
 	closed   chan struct{}
 	events   chan Event
+	levels   map[string]float64
 }
 
 func NewClient() *Client {
-	return &Client{pending: make(map[string]chan requestResponse), events: make(chan Event, 64)}
+	return &Client{pending: make(map[string]chan requestResponse), events: make(chan Event, 64), levels: make(map[string]float64)}
 }
 
 func (c *Client) Events() <-chan Event { return c.events }
@@ -294,6 +331,143 @@ func (c *Client) StopStreaming(ctx context.Context) error {
 	return c.request(ctx, "StopStream", nil, nil)
 }
 
+func (c *Client) Telemetry(ctx context.Context) (Telemetry, error) {
+	var stream struct {
+		OutputActive     bool    `json:"outputActive"`
+		OutputDuration   int64   `json:"outputDuration"`
+		OutputBytes      int64   `json:"outputBytes"`
+		OutputCongestion float64 `json:"outputCongestion"`
+	}
+	if err := c.request(ctx, "GetStreamStatus", nil, &stream); err != nil {
+		return Telemetry{}, err
+	}
+	var record struct {
+		OutputActive   bool  `json:"outputActive"`
+		OutputDuration int64 `json:"outputDuration"`
+		OutputBytes    int64 `json:"outputBytes"`
+	}
+	if err := c.request(ctx, "GetRecordStatus", nil, &record); err != nil {
+		return Telemetry{}, err
+	}
+	var stats struct {
+		CPUUsage               float64 `json:"cpuUsage"`
+		ActiveFPS              float64 `json:"activeFps"`
+		AverageFrameRenderTime float64 `json:"averageFrameRenderTime"`
+		RenderSkippedFrames    uint64  `json:"renderSkippedFrames"`
+		RenderTotalFrames      uint64  `json:"renderTotalFrames"`
+		OutputSkippedFrames    uint64  `json:"outputSkippedFrames"`
+		OutputTotalFrames      uint64  `json:"outputTotalFrames"`
+	}
+	if err := c.request(ctx, "GetStats", nil, &stats); err != nil {
+		return Telemetry{}, err
+	}
+	return Telemetry{Streaming: stream.OutputActive, StreamDuration: stream.OutputDuration, StreamBytes: stream.OutputBytes,
+		StreamCongestion: stream.OutputCongestion, Recording: record.OutputActive, RecordDuration: record.OutputDuration,
+		RecordBytes: record.OutputBytes, CPUUsage: stats.CPUUsage, ActiveFPS: stats.ActiveFPS,
+		AverageFrameRenderTime: stats.AverageFrameRenderTime, RenderSkippedFrames: stats.RenderSkippedFrames,
+		RenderTotalFrames: stats.RenderTotalFrames, OutputSkippedFrames: stats.OutputSkippedFrames, OutputTotalFrames: stats.OutputTotalFrames}, nil
+}
+
+func (c *Client) AudioInputs(ctx context.Context) ([]AudioInput, error) {
+	var data struct {
+		Inputs []struct {
+			Name string `json:"inputName"`
+			Kind string `json:"inputKind"`
+		} `json:"inputs"`
+	}
+	if err := c.request(ctx, "GetInputList", nil, &data); err != nil {
+		return nil, err
+	}
+	inputs := make([]AudioInput, 0, len(data.Inputs))
+	for _, item := range data.Inputs {
+		var mute struct {
+			Muted bool `json:"inputMuted"`
+		}
+		if err := c.request(ctx, "GetInputMute", map[string]any{"inputName": item.Name}, &mute); err != nil {
+			continue
+		}
+		var volume struct {
+			VolumeDB  float64 `json:"inputVolumeDb"`
+			VolumeMul float64 `json:"inputVolumeMul"`
+		}
+		if err := c.request(ctx, "GetInputVolume", map[string]any{"inputName": item.Name}, &volume); err != nil {
+			continue
+		}
+		c.mu.RLock()
+		level, exists := c.levels[item.Name]
+		c.mu.RUnlock()
+		status := "sem dados"
+		if exists {
+			status = "normal"
+			if level > -1 {
+				status = "clipping"
+			} else if level < -55 {
+				status = "sem áudio"
+			}
+		}
+		inputs = append(inputs, AudioInput{Name: item.Name, Kind: item.Kind, Muted: mute.Muted, VolumeDB: volume.VolumeDB, VolumeMul: volume.VolumeMul, LevelDB: level, LevelStatus: status})
+	}
+	return inputs, nil
+}
+
+func (c *Client) SetInputMute(ctx context.Context, name string, muted bool) error {
+	return c.request(ctx, "SetInputMute", map[string]any{"inputName": name, "inputMuted": muted}, nil)
+}
+
+func (c *Client) SetInputVolume(ctx context.Context, name string, volumeDB float64) error {
+	if volumeDB < -100 || volumeDB > 26 {
+		return errors.New("volume deve estar entre -100 dB e 26 dB")
+	}
+	return c.request(ctx, "SetInputVolume", map[string]any{"inputName": name, "inputVolumeDb": volumeDB}, nil)
+}
+
+func (c *Client) StudioMode(ctx context.Context) (StudioMode, error) {
+	var enabled struct {
+		Enabled bool `json:"studioModeEnabled"`
+	}
+	if err := c.request(ctx, "GetStudioModeEnabled", nil, &enabled); err != nil {
+		return StudioMode{}, err
+	}
+	var program struct {
+		Name string `json:"currentProgramSceneName"`
+	}
+	if err := c.request(ctx, "GetCurrentProgramScene", nil, &program); err != nil {
+		return StudioMode{}, err
+	}
+	result := StudioMode{Enabled: enabled.Enabled, ProgramScene: program.Name}
+	if enabled.Enabled {
+		var preview struct {
+			Name string `json:"currentPreviewSceneName"`
+		}
+		if err := c.request(ctx, "GetCurrentPreviewScene", nil, &preview); err == nil {
+			result.PreviewScene = preview.Name
+		}
+	}
+	var transition struct {
+		Name     string `json:"transitionName"`
+		Duration int    `json:"transitionDuration"`
+	}
+	if err := c.request(ctx, "GetCurrentSceneTransition", nil, &transition); err == nil {
+		result.TransitionName, result.TransitionDuration = transition.Name, transition.Duration
+	}
+	return result, nil
+}
+
+func (c *Client) SetPreviewScene(ctx context.Context, name string) error {
+	return c.request(ctx, "SetCurrentPreviewScene", map[string]any{"sceneName": name}, nil)
+}
+
+func (c *Client) SetTransitionDuration(ctx context.Context, duration int) error {
+	if duration < 50 || duration > 20000 {
+		return errors.New("duração deve estar entre 50 e 20000 ms")
+	}
+	return c.request(ctx, "SetCurrentSceneTransitionDuration", map[string]any{"transitionDuration": duration}, nil)
+}
+
+func (c *Client) TriggerTransition(ctx context.Context) error {
+	return c.request(ctx, "TriggerStudioModeTransition", nil, nil)
+}
+
 func (c *Client) request(ctx context.Context, requestType string, data any, output any) error {
 	c.mu.Lock()
 	if c.conn == nil {
@@ -351,6 +525,33 @@ func (c *Client) readLoop(conn *websocket.Conn) {
 					EventData json.RawMessage `json:"eventData"`
 				}
 				if json.Unmarshal(message.D, &event) == nil {
+					if event.EventType == "InputVolumeMeters" {
+						var meters struct {
+							Inputs []struct {
+								Name   string      `json:"inputName"`
+								Levels [][]float64 `json:"inputLevelsMul"`
+							} `json:"inputs"`
+						}
+						if json.Unmarshal(event.EventData, &meters) == nil {
+							c.mu.Lock()
+							for _, input := range meters.Inputs {
+								peak := 0.0
+								for _, channel := range input.Levels {
+									for _, value := range channel {
+										if value > peak {
+											peak = value
+										}
+									}
+								}
+								level := -100.0
+								if peak > 0 {
+									level = 20 * math.Log10(peak)
+								}
+								c.levels[input.Name] = level
+							}
+							c.mu.Unlock()
+						}
+					}
 					select {
 					case c.events <- Event{Type: event.EventType, Data: event.EventData}:
 					default:

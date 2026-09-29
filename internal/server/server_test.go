@@ -34,6 +34,20 @@ func (f *fakeOBS) StartRecording(context.Context) error                         
 func (f *fakeOBS) StopRecording(context.Context) error                          { return nil }
 func (f *fakeOBS) StartStreaming(context.Context) error                         { return nil }
 func (f *fakeOBS) StopStreaming(context.Context) error                          { return nil }
+func (f *fakeOBS) Telemetry(context.Context) (obs.Telemetry, error) {
+	return obs.Telemetry{ActiveFPS: 60}, nil
+}
+func (f *fakeOBS) AudioInputs(context.Context) ([]obs.AudioInput, error) {
+	return []obs.AudioInput{{Name: "Mic", VolumeDB: -6}}, nil
+}
+func (f *fakeOBS) SetInputMute(context.Context, string, bool) error      { return nil }
+func (f *fakeOBS) SetInputVolume(context.Context, string, float64) error { return nil }
+func (f *fakeOBS) StudioMode(context.Context) (obs.StudioMode, error) {
+	return obs.StudioMode{Enabled: true, ProgramScene: f.scene}, nil
+}
+func (f *fakeOBS) SetPreviewScene(context.Context, string) error    { return nil }
+func (f *fakeOBS) SetTransitionDuration(context.Context, int) error { return nil }
+func (f *fakeOBS) TriggerTransition(context.Context) error          { return nil }
 
 func TestProtectedSceneWorkflow(t *testing.T) {
 	controller := &fakeOBS{scene: "Abertura"}
@@ -128,5 +142,43 @@ func TestEventsWebSocketRequiresTokenAndReceivesCommands(t *testing.T) {
 	}
 	if event.Type != "obs.recording" {
 		t.Fatalf("evento inesperado: %+v", event)
+	}
+}
+
+func TestIdempotencyReplaysCommandAndCreatesAuditEvent(t *testing.T) {
+	manager := New(&fakeOBS{}, logs.New(20))
+	if err := manager.Start(Settings{Host: "127.0.0.1", Port: 0, Token: "secret"}); err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Stop(context.Background())
+	url := "http://" + manager.Address() + "/obs/recording/start"
+	for index := 0; index < 2; index++ {
+		request, _ := http.NewRequest(http.MethodPost, url, nil)
+		request.Header.Set("Authorization", "Bearer secret")
+		request.Header.Set("Idempotency-Key", "command-1")
+		response, err := http.DefaultClient.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if index == 1 && response.Header.Get("Idempotency-Replayed") != "true" {
+			t.Fatal("resposta duplicada não foi reaproveitada")
+		}
+		response.Body.Close()
+	}
+	request, _ := http.NewRequest(http.MethodGet, "http://"+manager.Address()+"/api/v1/audit-events", nil)
+	request.Header.Set("Authorization", "Bearer secret")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	var result struct {
+		Events []AuditEvent `json:"events"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Events) != 1 || result.Events[0].CommandID != "command-1" {
+		t.Fatalf("auditoria inesperada: %+v", result.Events)
 	}
 }
