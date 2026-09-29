@@ -20,8 +20,9 @@ Aplicação desktop local para controlar cenas do OBS Studio por meio de uma API
 - Execução em segundo plano ao fechar a janela.
 - Painel de status, tela de configurações e logs filtráveis.
 - Buffer limitado aos 500 eventos mais recentes da sessão.
+- Controle básico de câmeras PTZ por VISCA over IP, com direção e zoom.
 
-Macros, atalhos globais, Stream Deck, PTZ e permissões granulares permanecem reservados para a versão 3.
+Macros, atalhos globais, Stream Deck e permissões granulares permanecem reservados para a versão 3.
 
 ## Arquitetura
 
@@ -232,6 +233,8 @@ Por padrão, a API fica disponível em `http://127.0.0.1:3456`.
 | `POST` | `/obs/recording/stop`                     | Bearer          | para a gravação                      |
 | `POST` | `/obs/stream/start`                       | Bearer          | inicia a transmissão                 |
 | `POST` | `/obs/stream/stop`                        | Bearer          | para a transmissão                   |
+| `POST` | `/ptz/move`                              | Bearer          | move ou para uma câmera VISCA IP     |
+| `POST` | `/ptz/zoom`                              | Bearer          | controla ou para o zoom VISCA IP     |
 | `GET`  | `/events?token=`                          | query ou Bearer | WebSocket de eventos                 |
 | `POST` | `/server/restart`                         | Bearer          | reinicia a API na mesma configuração |
 

@@ -14,6 +14,7 @@ import (
 	"obs-control-server/internal/config"
 	"obs-control-server/internal/logs"
 	"obs-control-server/internal/obs"
+	"obs-control-server/internal/ptz"
 	"obs-control-server/internal/server"
 )
 
@@ -44,6 +45,7 @@ type App struct {
 	store     *config.Store
 	logs      *logs.Buffer
 	obs       *obs.Client
+	ptz       *ptz.Client
 	server    *server.Manager
 	autostart *autostart.Manager
 	connectMu sync.Mutex
@@ -54,7 +56,7 @@ func NewApp() *App {
 	eventLogs := logs.New(500)
 	obsClient := obs.NewClient()
 	autostartManager, _ := autostart.New()
-	return &App{logs: eventLogs, obs: obsClient, server: server.New(obsClient, eventLogs), autostart: autostartManager}
+	return &App{logs: eventLogs, obs: obsClient, ptz: ptz.NewClient(), server: server.New(obsClient, eventLogs), autostart: autostartManager}
 }
 
 func (a *App) GetVersion() string {
@@ -338,6 +340,26 @@ func (a *App) SetStreaming(active bool) error {
 	}
 	a.logs.Add("obs", "info", fmt.Sprintf("Transmissão ativa: %t", active))
 	a.server.Publish("obs.streaming", map[string]any{"active": active})
+	return nil
+}
+
+func (a *App) MovePTZ(host string, port int, direction string, speed int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := a.ptz.Move(ctx, host, port, direction, speed); err != nil {
+		return err
+	}
+	a.logs.Add("ptz", "info", fmt.Sprintf("Comando de movimento PTZ %q enviado para %s:%d", direction, host, port))
+	return nil
+}
+
+func (a *App) ZoomPTZ(host string, port int, direction string, speed int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := a.ptz.Zoom(ctx, host, port, direction, speed); err != nil {
+		return err
+	}
+	a.logs.Add("ptz", "info", fmt.Sprintf("Comando de zoom PTZ %q enviado para %s:%d", direction, host, port))
 	return nil
 }
 

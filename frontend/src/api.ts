@@ -13,6 +13,7 @@ type Backend = {
   GetScenes(): Promise<Scene[]>; SetScene(name: string): Promise<void>
   GetSources(sceneName: string): Promise<Source[]>; SetSourceVisible(sceneName: string, sourceName: string, visible: boolean): Promise<void>
   SetRecording(active: boolean): Promise<void>; SetStreaming(active: boolean): Promise<void>
+  MovePTZ(host: string, port: number, direction: string, speed: number): Promise<void>; ZoomPTZ(host: string, port: number, direction: string, speed: number): Promise<void>
   CreateProfile(name: string): Promise<void>; SwitchProfile(name: string): Promise<void>; DeleteProfile(name: string): Promise<void>
   MinimizeToTray(): Promise<void>; GetLogs(category: string): Promise<LogEntry[]>; GetVersion(): Promise<string>
 }

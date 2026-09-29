@@ -15,6 +15,16 @@ import (
 )
 
 type fakeOBS struct{ scene string }
+type fakePTZ struct{ kind, direction string }
+
+func (f *fakePTZ) Move(_ context.Context, _ string, _ int, direction string, _ int) error {
+	f.kind, f.direction = "move", direction
+	return nil
+}
+func (f *fakePTZ) Zoom(_ context.Context, _ string, _ int, direction string, _ int) error {
+	f.kind, f.direction = "zoom", direction
+	return nil
+}
 
 func (f *fakeOBS) Status(context.Context) (obs.Status, error) {
 	return obs.Status{Connected: true, CurrentScene: f.scene}, nil
@@ -95,6 +105,28 @@ func TestHealthDoesNotRequireToken(t *testing.T) {
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("esperava 200, recebeu %d", response.StatusCode)
+	}
+}
+
+func TestPTZCommandRequiresTokenAndIsForwarded(t *testing.T) {
+	manager := New(&fakeOBS{}, logs.New(20))
+	controller := &fakePTZ{}
+	manager.ptz = controller
+	if err := manager.Start(Settings{Host: "127.0.0.1", Port: 0, Token: "secret"}); err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Stop(context.Background())
+	body := bytes.NewBufferString(`{"host":"192.168.1.20","port":52381,"direction":"left","speed":8}`)
+	request, _ := http.NewRequest(http.MethodPost, "http://"+manager.Address()+"/ptz/move", body)
+	request.Header.Set("Authorization", "Bearer secret")
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK || controller.kind != "move" || controller.direction != "left" {
+		t.Fatalf("comando PTZ inesperado: status=%d kind=%s direction=%s", response.StatusCode, controller.kind, controller.direction)
 	}
 }
 

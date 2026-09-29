@@ -7,7 +7,7 @@ import './App.css'
 const emptySnapshot: Snapshot = {serverRunning: false, serverAddress: '', obs: {connected: false, currentScene: '', recording: false, streaming: false}}
 
 function App() {
-  const [tab, setTab] = useState<'dashboard' | 'settings' | 'instructions' | 'logs'>('dashboard')
+  const [tab, setTab] = useState<'dashboard' | 'ptz' | 'settings' | 'instructions' | 'logs'>('dashboard')
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot)
   const [config, setConfig] = useState<Config | null>(null)
   const [password, setPassword] = useState('')
@@ -18,6 +18,16 @@ function App() {
   const [busy, setBusy] = useState('')
   const [version, setVersion] = useState('')
   const [notice, setNotice] = useState<{kind: 'ok' | 'error'; text: string} | null>(null)
+  const [ptzHost, setPtzHost] = useState('192.168.1.100')
+  const [ptzPort, setPtzPort] = useState(52381)
+  const [ptzSpeed, setPtzSpeed] = useState(8)
+
+  const sendPTZ = useCallback(async (kind: 'move' | 'zoom', direction: string) => {
+    try {
+      if (kind === 'move') await api().MovePTZ(ptzHost, ptzPort, direction, ptzSpeed)
+      else await api().ZoomPTZ(ptzHost, ptzPort, direction, Math.min(ptzSpeed, 7))
+    } catch (error) { setNotice({kind: 'error', text: String(error)}) }
+  }, [ptzHost, ptzPort, ptzSpeed])
 
   useEffect(() => {
     let active = true
@@ -92,6 +102,7 @@ function App() {
       <div className="brand"><span className="brand-mark"><img src={logo} alt="" /></span><div><strong>OBS Remote Deck</strong><small>Local Server</small></div></div>
       <nav>
         <button className={tab === 'dashboard' ? 'active' : ''} onClick={() => setTab('dashboard')}><span>⌁</span>Painel</button>
+        <button className={tab === 'ptz' ? 'active' : ''} onClick={() => setTab('ptz')}><span>✥</span>Câmera PTZ</button>
         <button className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}><span>⚙</span>Configurações</button>
         <button className={tab === 'instructions' ? 'active' : ''} onClick={() => setTab('instructions')}><span>?</span>Como conectar</button>
         <button className={tab === 'logs' ? 'active' : ''} onClick={() => setTab('logs')}><span>≡</span>Logs</button>
@@ -100,7 +111,7 @@ function App() {
       <div className="app-version">OBS Remote Deck{version && <span>v{version}</span>}</div>
     </aside>
     <main>
-      <header><div><p className="eyebrow">CONTROLE LOCAL</p><h1>{tab === 'dashboard' ? 'Painel de controle' : tab === 'settings' ? 'Configurações' : tab === 'instructions' ? 'Como conectar ao OBS' : 'Logs da aplicação'}</h1></div><span className="secure">● Somente localhost</span></header>
+      <header><div><p className="eyebrow">CONTROLE LOCAL</p><h1>{tab === 'dashboard' ? 'Painel de controle' : tab === 'ptz' ? 'Controle de câmera PTZ' : tab === 'settings' ? 'Configurações' : tab === 'instructions' ? 'Como conectar ao OBS' : 'Logs da aplicação'}</h1></div><span className="secure">● Somente localhost</span></header>
       {notice && <div className={`notice ${notice.kind}`}>{notice.text}<button onClick={() => setNotice(null)}>×</button></div>}
 
       {tab === 'dashboard' && <>
@@ -128,6 +139,24 @@ function App() {
           {sources.length ? <div className="source-list">{sources.map(source => <div className="source-row" key={source.id}><span className={source.enabled ? 'source-state visible' : 'source-state'}>{source.enabled ? 'VISÍVEL' : 'OCULTA'}</span><strong>{source.name}</strong><button disabled={!!busy} onClick={() => action('source', () => api().SetSourceVisible(source.sceneName, source.name, !source.enabled), `Fonte “${source.name}” ${source.enabled ? 'ocultada' : 'exibida'}.`)}>{source.enabled ? 'Ocultar' : 'Mostrar'}</button></div>)}</div> : <div className="empty">Nenhuma fonte disponível na cena atual.</div>}
         </section>
       </>}
+
+      {tab === 'ptz' && <section className="panel ptz-panel">
+        <PanelTitle title="VISCA over IP" detail="Segure um botão para mover a câmera; ao soltar, o movimento para." />
+        <div className="ptz-settings">
+          <label>IP da câmera<input value={ptzHost} inputMode="decimal" onChange={event => setPtzHost(event.target.value)} /></label>
+          <label>Porta UDP<input type="number" min="1" max="65535" value={ptzPort} onChange={event => setPtzPort(Number(event.target.value))} /></label>
+          <label>Velocidade ({ptzSpeed})<input type="range" min="1" max="24" value={ptzSpeed} onChange={event => setPtzSpeed(Number(event.target.value))} /></label>
+        </div>
+        <div className="ptz-controls">
+          <div><h3>Movimento</h3><div className="ptz-pad">
+            <span /><PTZButton label="↑" start={() => sendPTZ('move', 'up')} stop={() => sendPTZ('move', 'stop')} /><span />
+            <PTZButton label="←" start={() => sendPTZ('move', 'left')} stop={() => sendPTZ('move', 'stop')} /><button onClick={() => sendPTZ('move', 'stop')} aria-label="Parar movimento">■</button><PTZButton label="→" start={() => sendPTZ('move', 'right')} stop={() => sendPTZ('move', 'stop')} />
+            <span /><PTZButton label="↓" start={() => sendPTZ('move', 'down')} stop={() => sendPTZ('move', 'stop')} /><span />
+          </div></div>
+          <div><h3>Zoom</h3><div className="ptz-zoom"><PTZButton label="＋ Aproximar" start={() => sendPTZ('zoom', 'in')} stop={() => sendPTZ('zoom', 'stop')} /><PTZButton label="− Afastar" start={() => sendPTZ('zoom', 'out')} stop={() => sendPTZ('zoom', 'stop')} /></div></div>
+        </div>
+        <p className="ptz-note">A câmera deve estar na mesma rede e com VISCA over IP habilitado. Porta padrão: 52381/UDP.</p>
+      </section>}
 
       {tab === 'settings' && config && <form className="settings" onSubmit={save}>
         <section className="panel"><div className="panel-heading"><div><h2>Perfil de ambiente</h2><p>Separe configurações para estúdio, produção ou testes.</p></div></div><div className="profile-toolbar">
@@ -177,7 +206,7 @@ function App() {
         </section>
       </div>}
 
-      {tab === 'logs' && <section className="panel logs-panel"><div className="panel-heading"><div><h2>Eventos recentes</h2><p>Até 500 eventos desta sessão.</p></div><select value={logFilter} onChange={e => setLogFilter(e.target.value)}><option value="all">Todos</option><option value="server">Servidor</option><option value="obs">OBS</option><option value="requests">Requisições</option><option value="errors">Erros</option></select></div>
+      {tab === 'logs' && <section className="panel logs-panel"><div className="panel-heading"><div><h2>Eventos recentes</h2><p>Até 500 eventos desta sessão.</p></div><select value={logFilter} onChange={e => setLogFilter(e.target.value)}><option value="all">Todos</option><option value="server">Servidor</option><option value="obs">OBS</option><option value="ptz">PTZ</option><option value="requests">Requisições</option><option value="errors">Erros</option></select></div>
         <div className="log-list">{logs.length ? [...logs].reverse().map(entry => <div className={`log ${entry.level}`} key={entry.id}><time>{new Date(entry.time).toLocaleTimeString('pt-BR')}</time><span>{entry.category}</span><p>{entry.message}</p></div>) : <div className="empty">Nenhum evento para este filtro.</div>}</div>
       </section>}
     </main>
@@ -187,5 +216,6 @@ function App() {
 function PanelTitle({title, detail}: {title: string; detail: string}) { return <div className="panel-heading"><div><h2>{title}</h2><p>{detail}</p></div></div> }
 function StatusCard({label, value, detail, good, icon}: {label: string; value: string; detail: string; good: boolean; icon: string}) { return <article className="status-card"><div className="status-icon">{icon}</div><div><p>{label}</p><h3>{value}</h3><small><i className={good ? 'dot online' : 'dot'} />{detail}</small></div></article> }
 function ActionButton({title, subtitle, icon, danger, disabled, onClick}: {title: string; subtitle: string; icon: string; danger?: boolean; disabled: boolean; onClick: () => void}) { return <button className={`action ${danger ? 'danger' : ''}`} disabled={disabled} onClick={onClick}><span>{icon}</span><div><strong>{title}</strong><small>{subtitle}</small></div><b>›</b></button> }
+function PTZButton({label, start, stop}: {label: string; start: () => void; stop: () => void}) { return <button onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); start() }} onPointerUp={stop} onPointerCancel={stop}>{label}</button> }
 function Toggle({label, checked, onChange}: {label: string; checked: boolean; onChange: (value: boolean) => void}) { return <label className="toggle-row"><span>{label}</span><button type="button" className={checked ? 'toggle checked' : 'toggle'} onClick={() => onChange(!checked)}><i /></button></label> }
 export default App

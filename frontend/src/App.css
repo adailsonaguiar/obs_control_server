@@ -171,6 +171,21 @@ h1 { margin: 0; font-size: 26px; letter-spacing: -.02em; }
 .source-state { color: #b7b7b7; font-size: 8px; letter-spacing: .06em; }
 .source-state.visible { color: #a7d7b1; }
 
+.ptz-settings { padding: 18px; display: grid; grid-template-columns: 1fr 150px 1fr; gap: 16px; border-bottom: 1px solid var(--border); }
+.ptz-settings label { display: grid; gap: 7px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+.ptz-settings input:not([type="range"]) { padding: 10px; border: 1px solid var(--border-strong); border-radius: 3px; background: #202020; color: var(--text); }
+.ptz-settings input[type="range"] { accent-color: var(--accent); }
+.ptz-controls { padding: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 35px; }
+.ptz-controls > div { display: grid; justify-items: center; gap: 14px; }
+.ptz-controls h3 { margin: 0; font-size: 13px; }
+.ptz-pad { display: grid; grid-template-columns: repeat(3, 58px); gap: 7px; }
+.ptz-pad button, .ptz-zoom button { min-height: 52px; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--surface-raised); color: var(--text); cursor: pointer; font-size: 20px; touch-action: none; user-select: none; }
+.ptz-pad button:active, .ptz-zoom button:active { border-color: var(--accent); background: #334b5e; }
+.ptz-zoom { display: grid; gap: 10px; width: min(100%, 220px); }
+.ptz-zoom button { padding: 0 18px; font-size: 13px; font-weight: 700; }
+.ptz-note { margin: 0; padding: 13px 18px; border-top: 1px solid var(--border); color: var(--muted); font-size: 10px; }
+@media (max-width: 760px) { .ptz-settings, .ptz-controls { grid-template-columns: 1fr; } }
+
 .settings { display: grid; gap: 2px; }
 .profile-toolbar { padding: 14px 18px; display: flex; align-items: center; gap: 8px; }
 .profile-toolbar select { flex: 1; }

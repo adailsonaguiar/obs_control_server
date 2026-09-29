@@ -16,6 +16,7 @@ import (
 	"obs-control-server/internal/events"
 	"obs-control-server/internal/logs"
 	"obs-control-server/internal/obs"
+	"obs-control-server/internal/ptz"
 )
 
 type OBSController interface {
@@ -45,12 +46,18 @@ type Settings struct {
 	Token string
 }
 
+type PTZController interface {
+	Move(context.Context, string, int, string, int) error
+	Zoom(context.Context, string, int, string, int) error
+}
+
 type Manager struct {
 	mu       sync.RWMutex
 	server   *http.Server
 	listener net.Listener
 	settings Settings
 	obs      OBSController
+	ptz      PTZController
 	logs     *logs.Buffer
 	events   *events.Hub
 	commands map[string]cachedResponse
@@ -74,7 +81,7 @@ type AuditEvent struct {
 }
 
 func New(controller OBSController, eventLogs *logs.Buffer) *Manager {
-	return &Manager{obs: controller, logs: eventLogs, events: events.New(), commands: make(map[string]cachedResponse)}
+	return &Manager{obs: controller, ptz: ptz.NewClient(), logs: eventLogs, events: events.New(), commands: make(map[string]cachedResponse)}
 }
 
 func (m *Manager) Start(settings Settings) error {
@@ -101,6 +108,8 @@ func (m *Manager) Start(settings Settings) error {
 	mux.Handle("POST /obs/recording/stop", m.auth(http.HandlerFunc(m.stopRecording)))
 	mux.Handle("POST /obs/stream/start", m.auth(http.HandlerFunc(m.startStreaming)))
 	mux.Handle("POST /obs/stream/stop", m.auth(http.HandlerFunc(m.stopStreaming)))
+	mux.Handle("POST /ptz/move", m.auth(http.HandlerFunc(m.movePTZ)))
+	mux.Handle("POST /ptz/zoom", m.auth(http.HandlerFunc(m.zoomPTZ)))
 	mux.Handle("GET /api/v1/telemetry", m.auth(http.HandlerFunc(m.telemetry)))
 	mux.Handle("GET /api/v1/audio/inputs", m.auth(http.HandlerFunc(m.audioInputs)))
 	mux.Handle("PATCH /api/v1/audio/inputs/{name}", m.auth(http.HandlerFunc(m.updateAudioInput)))
@@ -281,6 +290,41 @@ func (m *Manager) startStreaming(writer http.ResponseWriter, request *http.Reque
 }
 func (m *Manager) stopStreaming(writer http.ResponseWriter, request *http.Request) {
 	m.outputCommand(writer, request, "transmissão", false, m.obs.StopStreaming, "obs.streaming")
+}
+
+type ptzCommand struct {
+	Host      string `json:"host"`
+	Port      int    `json:"port"`
+	Direction string `json:"direction"`
+	Speed     int    `json:"speed"`
+}
+
+func (m *Manager) movePTZ(writer http.ResponseWriter, request *http.Request) {
+	var body ptzCommand
+	if err := decodeBody(writer, request, &body); err != nil {
+		writeError(writer, http.StatusBadRequest, err)
+		return
+	}
+	if err := m.ptz.Move(request.Context(), body.Host, body.Port, body.Direction, body.Speed); err != nil {
+		writeError(writer, http.StatusBadRequest, err)
+		return
+	}
+	m.logs.Add("ptz", "info", fmt.Sprintf("Comando de movimento PTZ %q enviado para %s:%d", body.Direction, body.Host, body.Port))
+	writeJSON(writer, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (m *Manager) zoomPTZ(writer http.ResponseWriter, request *http.Request) {
+	var body ptzCommand
+	if err := decodeBody(writer, request, &body); err != nil {
+		writeError(writer, http.StatusBadRequest, err)
+		return
+	}
+	if err := m.ptz.Zoom(request.Context(), body.Host, body.Port, body.Direction, body.Speed); err != nil {
+		writeError(writer, http.StatusBadRequest, err)
+		return
+	}
+	m.logs.Add("ptz", "info", fmt.Sprintf("Comando de zoom PTZ %q enviado para %s:%d", body.Direction, body.Host, body.Port))
+	writeJSON(writer, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (m *Manager) outputCommand(writer http.ResponseWriter, request *http.Request, label string, active bool, command func(context.Context) error, eventType string) {
