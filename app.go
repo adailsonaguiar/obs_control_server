@@ -390,6 +390,12 @@ func (a *App) eventForwardLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case event := <-a.obs.Events():
+			// Medidores de volume podem chegar dezenas de vezes por segundo. Eles
+			// alimentam o cache interno do cliente OBS, mas não devem provocar uma
+			// atualização completa em todos os navegadores conectados.
+			if event.Type == "InputVolumeMeters" {
+				continue
+			}
 			a.server.Publish("obs.event."+event.Type, event.Data)
 		}
 	}
