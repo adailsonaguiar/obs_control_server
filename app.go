@@ -20,7 +20,7 @@ import (
 
 // AppVersion is the user-facing application version. It may be replaced at
 // build time with: -ldflags "-X main.AppVersion=2.1.0".
-var AppVersion = "0.0.1"
+var AppVersion = "0.1.0"
 
 type ConfigView struct {
 	Server        config.Server      `json:"server"`

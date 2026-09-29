@@ -4,7 +4,7 @@
   "outputfilename": "OBS Remote Deck",
   "info": {
     "productName": "OBS Remote Deck",
-    "productVersion": "0.0.1",
+    "productVersion": "0.1.0",
     "companyName": "Verolab Soluções em Tecnologia",
     "comments": "Servidor local de controle para OBS Studio"
   },
