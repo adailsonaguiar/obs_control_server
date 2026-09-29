@@ -138,7 +138,7 @@ wails build
 O resultado é criado em `build/bin`. No macOS, por exemplo:
 
 ```bash
-open build/bin/obs-control-server.app
+open "build/bin/OBS Remote Deck.app"
 ```
 
 No Linux ou Windows, execute o binário correspondente gerado dentro de `build/bin`.
@@ -152,10 +152,10 @@ Execute os comandos abaixo na raiz de `obs_control_server`.
 Gera a aplicação para Macs Apple Silicon e cria um DMG com atalho para a pasta Aplicativos. A pasta `build/dmg` é somente uma área temporária; o instalador final será criado em `dist`.
 
 ```bash
-wails build -platform darwin/arm64 -o obs-remote-deck
+wails build -platform darwin/arm64 -o "OBS Remote Deck"
 
 mkdir -p build/dmg dist
-cp -R build/bin/obs-remote-deck.app build/dmg/
+cp -R "build/bin/OBS Remote Deck.app" build/dmg/
 ln -sfn /Applications build/dmg/Applications
 
 hdiutil create \
@@ -173,7 +173,7 @@ Resultado:
 dist/OBS-Remote-Deck-2.0.0-macOS-arm64.dmg
 ```
 
-É normal que `build/dmg` contenha somente `obs-remote-deck.app` e o atalho `Applications`: esse é exatamente o conteúdo colocado dentro do DMG pelo comando `hdiutil create`.
+É normal que `build/dmg` contenha somente `OBS Remote Deck.app` e o atalho `Applications`: esse é exatamente o conteúdo colocado dentro do DMG pelo comando `hdiutil create`.
 
 ### Windows — instalador EXE
 
@@ -192,14 +192,14 @@ CGO_ENABLED=1 \
 wails build \
   -platform windows/amd64 \
   -nsis \
-  -o OBS-Remote-Deck.exe
+  -o "OBS Remote Deck.exe"
 ```
 
 Resultados:
 
 ```text
-build/bin/OBS-Remote-Deck.exe
-build/bin/obs-control-server-amd64-installer.exe
+build/bin/OBS Remote Deck.exe
+build/bin/OBS Remote Deck-amd64-installer.exe
 ```
 
 O primeiro arquivo é a aplicação portátil. O segundo é o instalador com assistente, atalhos e desinstalador.
