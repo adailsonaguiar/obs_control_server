@@ -1,4 +1,4 @@
-import {FormEvent, useCallback, useEffect, useState} from 'react'
+import {FormEvent, PointerEvent, useCallback, useEffect, useRef, useState} from 'react'
 import {Environment} from '../wailsjs/runtime/runtime'
 import {api, backendAvailable, Config, LogEntry, Scene, Snapshot, Source} from './api'
 import logo from './assets/images/logo.png'
@@ -22,10 +22,11 @@ function App() {
   const [ptzPort, setPtzPort] = useState(52381)
   const [ptzSpeed, setPtzSpeed] = useState(8)
 
-  const sendPTZ = useCallback(async (kind: 'move' | 'zoom', direction: string) => {
+  const sendPTZ = useCallback(async (kind: 'move' | 'zoom', direction: string, speedOverride?: number) => {
     try {
-      if (kind === 'move') await api().MovePTZ(ptzHost, ptzPort, direction, ptzSpeed)
-      else await api().ZoomPTZ(ptzHost, ptzPort, direction, Math.min(ptzSpeed, 7))
+      const commandSpeed = speedOverride ?? ptzSpeed
+      if (kind === 'move') await api().MovePTZ(ptzHost, ptzPort, direction, commandSpeed)
+      else await api().ZoomPTZ(ptzHost, ptzPort, direction, Math.min(commandSpeed, 7))
     } catch (error) { setNotice({kind: 'error', text: String(error)}) }
   }, [ptzHost, ptzPort, ptzSpeed])
 
@@ -156,11 +157,7 @@ function App() {
           <label>Velocidade ({ptzSpeed})<input type="range" min="1" max="24" value={ptzSpeed} onChange={event => setPtzSpeed(Number(event.target.value))} /></label>
         </div>
         <div className="ptz-controls">
-          <div><h3>Movimento</h3><div className="ptz-pad">
-            <span /><PTZButton label="↑" start={() => sendPTZ('move', 'up')} stop={() => sendPTZ('move', 'stop')} /><span />
-            <PTZButton label="←" start={() => sendPTZ('move', 'left')} stop={() => sendPTZ('move', 'stop')} /><button onClick={() => sendPTZ('move', 'stop')} aria-label="Parar movimento">■</button><PTZButton label="→" start={() => sendPTZ('move', 'right')} stop={() => sendPTZ('move', 'stop')} />
-            <span /><PTZButton label="↓" start={() => sendPTZ('move', 'down')} stop={() => sendPTZ('move', 'stop')} /><span />
-          </div></div>
+          <div><h3>Movimento</h3><PTZJoystick onMove={(direction, speed) => sendPTZ('move', direction, speed)} onStop={() => sendPTZ('move', 'stop')} /></div>
           <div><h3>Zoom</h3><div className="ptz-zoom"><PTZButton label="＋ Aproximar" start={() => sendPTZ('zoom', 'in')} stop={() => sendPTZ('zoom', 'stop')} /><PTZButton label="− Afastar" start={() => sendPTZ('zoom', 'out')} stop={() => sendPTZ('zoom', 'stop')} /></div></div>
         </div>
         <p className="ptz-note">A câmera deve estar na mesma rede e com VISCA over IP habilitado. Porta padrão: 52381/UDP.</p>
@@ -225,5 +222,52 @@ function PanelTitle({title, detail}: {title: string; detail: string}) { return <
 function StatusCard({label, value, detail, good, icon}: {label: string; value: string; detail: string; good: boolean; icon: string}) { return <article className="status-card"><div className="status-icon">{icon}</div><div><p>{label}</p><h3>{value}</h3><small><i className={good ? 'dot online' : 'dot'} />{detail}</small></div></article> }
 function ActionButton({title, subtitle, icon, danger, disabled, onClick}: {title: string; subtitle: string; icon: string; danger?: boolean; disabled: boolean; onClick: () => void}) { return <button className={`action ${danger ? 'danger' : ''}`} disabled={disabled} onClick={onClick}><span>{icon}</span><div><strong>{title}</strong><small>{subtitle}</small></div><b>›</b></button> }
 function PTZButton({label, start, stop}: {label: string; start: () => void; stop: () => void}) { return <button onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); start() }} onPointerUp={stop} onPointerCancel={stop}>{label}</button> }
+function PTZJoystick({onMove, onStop}: {onMove: (direction: string, speed: number) => void; onStop: () => void}) {
+  const field = useRef<HTMLDivElement>(null)
+  const lastCommand = useRef({direction: '', speed: 0, time: 0})
+  const [position, setPosition] = useState({x: 0, y: 0})
+  const [dragging, setDragging] = useState(false)
+
+  function update(event: PointerEvent<HTMLDivElement>) {
+    if (!field.current) return
+    const bounds = field.current.getBoundingClientRect()
+    const radius = Math.max(1, Math.min(bounds.width, bounds.height) / 2 - 24)
+    const rawX = event.clientX - (bounds.left + bounds.width / 2)
+    const rawY = event.clientY - (bounds.top + bounds.height / 2)
+    const distance = Math.hypot(rawX, rawY)
+    const scale = distance > radius ? radius / distance : 1
+    const x = rawX * scale
+    const y = rawY * scale
+    setPosition({x, y})
+    const strength = Math.min(1, Math.hypot(x, y) / radius)
+    if (strength < .12) {
+      if (lastCommand.current.direction) { lastCommand.current = {direction: '', speed: 0, time: 0}; onStop() }
+      return
+    }
+    const direction = joystickDirection(x, y)
+    const speed = Math.max(1, Math.round(strength * 24))
+    const now = Date.now()
+    if (direction !== lastCommand.current.direction || Math.abs(speed - lastCommand.current.speed) >= 2 || now - lastCommand.current.time >= 100) {
+      lastCommand.current = {direction, speed, time: now}
+      onMove(direction, speed)
+    }
+  }
+
+  function release() { setDragging(false); setPosition({x: 0, y: 0}); lastCommand.current = {direction: '', speed: 0, time: 0}; onStop() }
+  return <div ref={field} className={`ptz-joystick ${dragging ? 'dragging' : ''}`} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); setDragging(true); update(event) }} onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) update(event) }} onPointerUp={release} onPointerCancel={release}>
+    <span className="ptz-axis horizontal" /><span className="ptz-axis vertical" /><span className="ptz-knob" style={{transform: `translate(${position.x}px, ${position.y}px)`}} />
+  </div>
+}
+function joystickDirection(x: number, y: number) {
+  const angle = Math.atan2(y, x) * 180 / Math.PI
+  if (angle >= -22.5 && angle < 22.5) return 'right'
+  if (angle >= 22.5 && angle < 67.5) return 'down-right'
+  if (angle >= 67.5 && angle < 112.5) return 'down'
+  if (angle >= 112.5 && angle < 157.5) return 'down-left'
+  if (angle >= 157.5 || angle < -157.5) return 'left'
+  if (angle >= -157.5 && angle < -112.5) return 'up-left'
+  if (angle >= -112.5 && angle < -67.5) return 'up'
+  return 'up-right'
+}
 function Toggle({label, checked, onChange}: {label: string; checked: boolean; onChange: (value: boolean) => void}) { return <label className="toggle-row"><span>{label}</span><button type="button" className={checked ? 'toggle checked' : 'toggle'} onClick={() => onChange(!checked)}><i /></button></label> }
 export default App
