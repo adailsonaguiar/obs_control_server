@@ -23,6 +23,9 @@ func (f *fakeOBS) Scenes(context.Context) ([]obs.Scene, error) {
 	return []obs.Scene{{Name: "Abertura"}, {Name: "Câmera"}}, nil
 }
 func (f *fakeOBS) SetScene(_ context.Context, name string) error { f.scene = name; return nil }
+func (f *fakeOBS) Screenshot(context.Context, string, int) ([]byte, error) {
+	return []byte{0xff, 0xd8, 0xff, 0xd9}, nil
+}
 func (f *fakeOBS) Sources(context.Context, string) ([]obs.Source, error) {
 	return []obs.Source{{SceneName: "Abertura", Name: "Logo", ID: 7, Enabled: true}}, nil
 }
@@ -78,6 +81,24 @@ func TestHealthDoesNotRequireToken(t *testing.T) {
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("esperava 200, recebeu %d", response.StatusCode)
+	}
+}
+
+func TestPreviewRequiresTokenAndReturnsJPEG(t *testing.T) {
+	manager := New(&fakeOBS{}, logs.New(20))
+	if err := manager.Start(Settings{Host: "127.0.0.1", Port: 0, Token: "secret"}); err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Stop(context.Background())
+	request, _ := http.NewRequest(http.MethodGet, "http://"+manager.Address()+"/obs/preview?sceneName=Abertura&width=640", nil)
+	request.Header.Set("Authorization", "Bearer secret")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK || response.Header.Get("Content-Type") != "image/jpeg" {
+		t.Fatalf("prévia inesperada: status=%d content-type=%q", response.StatusCode, response.Header.Get("Content-Type"))
 	}
 }
 

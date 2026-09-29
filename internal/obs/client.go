@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -206,6 +207,32 @@ func (c *Client) SetScene(ctx context.Context, name string) error {
 		return errors.New("o nome da cena é obrigatório")
 	}
 	return c.request(ctx, "SetCurrentProgramScene", map[string]any{"sceneName": name}, nil)
+}
+
+func (c *Client) Screenshot(ctx context.Context, sceneName string, width int) ([]byte, error) {
+	if strings.TrimSpace(sceneName) == "" {
+		return nil, errors.New("o nome da cena é obrigatório")
+	}
+	if width < 320 || width > 1920 {
+		width = 960
+	}
+	var data struct {
+		ImageData string `json:"imageData"`
+	}
+	if err := c.request(ctx, "GetSourceScreenshot", map[string]any{
+		"sourceName": sceneName, "imageFormat": "jpg", "imageWidth": width, "imageCompressionQuality": 70,
+	}, &data); err != nil {
+		return nil, err
+	}
+	_, encoded, found := strings.Cut(data.ImageData, ",")
+	if !found {
+		return nil, errors.New("OBS retornou uma imagem de prévia inválida")
+	}
+	image, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("decodificar prévia do OBS: %w", err)
+	}
+	return image, nil
 }
 
 func (c *Client) Sources(ctx context.Context, sceneName string) ([]Source, error) {

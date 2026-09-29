@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +22,7 @@ type OBSController interface {
 	Status(context.Context) (obs.Status, error)
 	Scenes(context.Context) ([]obs.Scene, error)
 	SetScene(context.Context, string) error
+	Screenshot(context.Context, string, int) ([]byte, error)
 	Sources(context.Context, string) ([]obs.Source, error)
 	SetSourceVisible(context.Context, string, string, bool) error
 	StartRecording(context.Context) error
@@ -65,6 +67,7 @@ func (m *Manager) Start(settings Settings) error {
 	mux.Handle("GET /obs/status", m.auth(http.HandlerFunc(m.obsStatus)))
 	mux.Handle("GET /obs/scenes", m.auth(http.HandlerFunc(m.obsScenes)))
 	mux.Handle("POST /obs/scene", m.auth(http.HandlerFunc(m.setScene)))
+	mux.Handle("GET /obs/preview", m.auth(http.HandlerFunc(m.obsPreview)))
 	mux.Handle("GET /obs/sources", m.auth(http.HandlerFunc(m.obsSources)))
 	mux.Handle("POST /obs/source/show", m.auth(http.HandlerFunc(m.showSource)))
 	mux.Handle("POST /obs/source/hide", m.auth(http.HandlerFunc(m.hideSource)))
@@ -163,6 +166,29 @@ func (m *Manager) setScene(writer http.ResponseWriter, request *http.Request) {
 	m.logs.Add("obs", "info", fmt.Sprintf("Cena alterada para %q", body.SceneName))
 	m.Publish("obs.scene.changed", map[string]any{"sceneName": body.SceneName})
 	writeJSON(writer, http.StatusOK, map[string]any{"ok": true, "sceneName": body.SceneName})
+}
+
+func (m *Manager) obsPreview(writer http.ResponseWriter, request *http.Request) {
+	sceneName := strings.TrimSpace(request.URL.Query().Get("sceneName"))
+	if sceneName == "" {
+		writeError(writer, http.StatusBadRequest, errors.New("informe sceneName"))
+		return
+	}
+	width := 960
+	if value := request.URL.Query().Get("width"); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			width = parsed
+		}
+	}
+	image, err := m.obs.Screenshot(request.Context(), sceneName, width)
+	if err != nil {
+		writeError(writer, http.StatusServiceUnavailable, err)
+		return
+	}
+	writer.Header().Set("Content-Type", "image/jpeg")
+	writer.Header().Set("Cache-Control", "no-store")
+	writer.WriteHeader(http.StatusOK)
+	_, _ = writer.Write(image)
 }
 
 func (m *Manager) obsSources(writer http.ResponseWriter, request *http.Request) {

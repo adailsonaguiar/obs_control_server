@@ -47,6 +47,9 @@ func TestClientConnectsListsAndChangesScene(t *testing.T) {
 			if payload["requestType"] == "GetSceneItemList" {
 				responseData["sceneItems"] = []map[string]any{{"sourceName": "Logo", "sceneItemId": 7, "sceneItemEnabled": true}}
 			}
+			if payload["requestType"] == "GetSourceScreenshot" {
+				responseData["imageData"] = "data:image/jpeg;base64,/9j/2Q=="
+			}
 			_ = conn.WriteJSON(map[string]any{"op": 7, "d": map[string]any{
 				"requestType": payload["requestType"], "requestId": payload["requestId"],
 				"requestStatus": map[string]any{"result": true, "code": 100}, "responseData": responseData,
@@ -76,6 +79,10 @@ func TestClientConnectsListsAndChangesScene(t *testing.T) {
 	}
 	if err := client.SetSourceVisible(context.Background(), "Abertura", "Logo", false); err != nil {
 		t.Fatal(err)
+	}
+	preview, err := client.Screenshot(context.Background(), "Abertura", 640)
+	if err != nil || len(preview) != 4 || preview[0] != 0xff {
+		t.Fatalf("prévia inesperada: %v, erro: %v", preview, err)
 	}
 	if err := client.StartRecording(context.Background()); err != nil {
 		t.Fatal(err)
