@@ -14,6 +14,22 @@
   --danger: #c94f5d;
 }
 
+.window-titlebar { display: none; }
+
+:root[data-platform="darwin"] .window-titlebar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 100;
+  display: block;
+  height: 38px;
+  background: linear-gradient(to right, var(--sidebar) 0 230px, var(--bg) 230px 100%);
+  border-bottom: 1px solid rgb(70 70 70 / 55%);
+  --wails-draggable: drag;
+}
+
+:root[data-platform="darwin"] .sidebar { padding-top: 54px; }
+:root[data-platform="darwin"] main { padding-top: 54px; }
+
 .shell {
   display: grid;
   grid-template-columns: 230px 1fr;

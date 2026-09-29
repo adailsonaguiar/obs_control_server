@@ -1,4 +1,4 @@
-# OBS Control Server — Versão 2
+# OBS Remote Deck Server — Versão 2
 
 Aplicação desktop local para controlar cenas do OBS Studio por meio de uma API REST protegida. O app combina um backend Go, uma interface React + TypeScript em Wails e comunicação nativa com o protocolo obs-websocket 5.
 
@@ -40,15 +40,15 @@ React + TypeScript (Wails WebView)
 
 O backend está dividido em módulos pequenos:
 
-| Diretório | Responsabilidade |
-| --- | --- |
-| `internal/config` | validação e persistência atômica da configuração |
-| `internal/autostart` | inicialização automática multiplataforma |
-| `internal/events` | distribuição de eventos em tempo real |
-| `internal/logs` | eventos em memória e filtros |
-| `internal/obs` | cliente obs-websocket 5 e autenticação |
-| `internal/server` | ciclo de vida e rotas da API REST |
-| `frontend/src` | interface desktop e integração com os bindings Wails |
+| Diretório            | Responsabilidade                                     |
+| -------------------- | ---------------------------------------------------- |
+| `internal/config`    | validação e persistência atômica da configuração     |
+| `internal/autostart` | inicialização automática multiplataforma             |
+| `internal/events`    | distribuição de eventos em tempo real                |
+| `internal/logs`      | eventos em memória e filtros                         |
+| `internal/obs`       | cliente obs-websocket 5 e autenticação               |
+| `internal/server`    | ciclo de vida e rotas da API REST                    |
+| `frontend/src`       | interface desktop e integração com os bindings Wails |
 
 ## Requisitos
 
@@ -157,22 +157,22 @@ A senha do OBS nunca é retornada para a interface: ela aparece apenas como “s
 
 Por padrão, a API fica disponível em `http://127.0.0.1:3456`.
 
-| Método | Rota | Autenticação | Descrição |
-| --- | --- | --- | --- |
-| `GET` | `/health` | não | saúde do servidor local |
-| `GET` | `/obs/status` | Bearer | conexão e cena atual |
-| `GET` | `/obs/scenes` | Bearer | cenas disponíveis |
-| `POST` | `/obs/scene` | Bearer | troca a cena atual |
-| `GET` | `/obs/preview?sceneName=&width=&quality=` | Bearer | imagem JPEG otimizada da cena no ar |
-| `GET` | `/obs/sources?sceneName=` | Bearer | fontes de uma cena |
-| `POST` | `/obs/source/show` | Bearer | exibe uma fonte |
-| `POST` | `/obs/source/hide` | Bearer | oculta uma fonte |
-| `POST` | `/obs/recording/start` | Bearer | inicia a gravação |
-| `POST` | `/obs/recording/stop` | Bearer | para a gravação |
-| `POST` | `/obs/stream/start` | Bearer | inicia a transmissão |
-| `POST` | `/obs/stream/stop` | Bearer | para a transmissão |
-| `GET` | `/events?token=` | query ou Bearer | WebSocket de eventos |
-| `POST` | `/server/restart` | Bearer | reinicia a API na mesma configuração |
+| Método | Rota                                      | Autenticação    | Descrição                            |
+| ------ | ----------------------------------------- | --------------- | ------------------------------------ |
+| `GET`  | `/health`                                 | não             | saúde do servidor local              |
+| `GET`  | `/obs/status`                             | Bearer          | conexão e cena atual                 |
+| `GET`  | `/obs/scenes`                             | Bearer          | cenas disponíveis                    |
+| `POST` | `/obs/scene`                              | Bearer          | troca a cena atual                   |
+| `GET`  | `/obs/preview?sceneName=&width=&quality=` | Bearer          | imagem JPEG otimizada da cena no ar  |
+| `GET`  | `/obs/sources?sceneName=`                 | Bearer          | fontes de uma cena                   |
+| `POST` | `/obs/source/show`                        | Bearer          | exibe uma fonte                      |
+| `POST` | `/obs/source/hide`                        | Bearer          | oculta uma fonte                     |
+| `POST` | `/obs/recording/start`                    | Bearer          | inicia a gravação                    |
+| `POST` | `/obs/recording/stop`                     | Bearer          | para a gravação                      |
+| `POST` | `/obs/stream/start`                       | Bearer          | inicia a transmissão                 |
+| `POST` | `/obs/stream/stop`                        | Bearer          | para a transmissão                   |
+| `GET`  | `/events?token=`                          | query ou Bearer | WebSocket de eventos                 |
+| `POST` | `/server/restart`                         | Bearer          | reinicia a API na mesma configuração |
 
 Exemplo:
 
@@ -190,8 +190,10 @@ Para acessar de outro dispositivo, ative **Permitir acesso pela rede local**, sa
 Exemplo de conexão aos eventos:
 
 ```js
-const events = new WebSocket('ws://IP-DO-COMPUTADOR:3456/events?token=SEU_TOKEN')
-events.onmessage = ({data}) => console.log(JSON.parse(data))
+const events = new WebSocket(
+  "ws://IP-DO-COMPUTADOR:3456/events?token=SEU_TOKEN",
+);
+events.onmessage = ({ data }) => console.log(JSON.parse(data));
 ```
 
 ## Testes e build

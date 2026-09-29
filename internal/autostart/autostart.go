@@ -76,11 +76,11 @@ func (m *Manager) definition() (string, string, error) {
 `, identifier, html.EscapeString(m.executable))
 		return path, content, nil
 	case "windows":
-		path := filepath.Join(m.home, "AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "OBS Control Server.cmd")
+		path := filepath.Join(m.home, "AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "OBS Remote Deck.cmd")
 		return path, fmt.Sprintf("@start \"\" \"%s\"\r\n", m.executable), nil
 	case "linux":
 		path := filepath.Join(m.home, ".config", "autostart", "obs-control-server.desktop")
-		return path, fmt.Sprintf("[Desktop Entry]\nType=Application\nName=OBS Control Server\nExec=\"%s\"\nX-GNOME-Autostart-enabled=true\n", m.executable), nil
+		return path, fmt.Sprintf("[Desktop Entry]\nType=Application\nName=OBS Remote Deck\nExec=\"%s\"\nX-GNOME-Autostart-enabled=true\n", m.executable), nil
 	default:
 		return "", "", fmt.Errorf("inicialização automática não suportada em %s", m.goos)
 	}

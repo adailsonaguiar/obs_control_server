@@ -1,4 +1,5 @@
 import {FormEvent, useCallback, useEffect, useState} from 'react'
+import {Environment} from '../wailsjs/runtime/runtime'
 import {api, Config, LogEntry, Scene, Snapshot, Source} from './api'
 import './App.css'
 
@@ -15,6 +16,18 @@ function App() {
   const [logFilter, setLogFilter] = useState('all')
   const [busy, setBusy] = useState('')
   const [notice, setNotice] = useState<{kind: 'ok' | 'error'; text: string} | null>(null)
+
+  useEffect(() => {
+    let active = true
+    try {
+      Environment().then(({platform}) => {
+        if (active) document.documentElement.dataset.platform = platform
+      }).catch(() => undefined)
+    } catch {
+      // The Wails runtime is unavailable when the frontend runs in a browser.
+    }
+    return () => { active = false }
+  }, [])
 
   const refresh = useCallback(async () => {
     try {
@@ -71,9 +84,9 @@ function App() {
     setConfig(await api().GetConfig())
   }
 
-  return <div className="shell">
+  return <><div className="window-titlebar" aria-hidden="true" /><div className="shell">
     <aside className="sidebar">
-      <div className="brand"><span className="brand-mark">OC</span><div><strong>OBS Control</strong><small>Local Server</small></div></div>
+      <div className="brand"><span className="brand-mark">OC</span><div><strong>OBS Remote Deck</strong><small>Local Server</small></div></div>
       <nav>
         <button className={tab === 'dashboard' ? 'active' : ''} onClick={() => setTab('dashboard')}><span>⌁</span>Painel</button>
         <button className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}><span>⚙</span>Configurações</button>
@@ -128,7 +141,7 @@ function App() {
           <label className="wide">Senha<input type="password" value={password} placeholder={config.hasPassword ? 'Senha salva — deixe vazio para manter' : 'Senha configurada no OBS'} onChange={e => setPassword(e.target.value)} /></label>
           <Toggle label="Conectar ao abrir" checked={config.autoConnect} onChange={value => setConfig({...config, autoConnect: value})} /><Toggle label="Reconectar automaticamente" checked={config.autoReconnect} onChange={value => setConfig({...config, autoReconnect: value})} />
         </div></section>
-        <section className="panel"><PanelTitle title="Aplicativo" detail="Comportamento do OBS Control Server no sistema operacional." /><div className="form-grid">
+        <section className="panel"><PanelTitle title="Aplicativo" detail="Comportamento do OBS Remote Deck no sistema operacional." /><div className="form-grid">
           <Toggle label="Iniciar com o sistema" checked={config.application.launchAtLogin} onChange={value => setConfig({...config, application: {...config.application, launchAtLogin: value}})} />
           <Toggle label="Continuar em segundo plano ao fechar" checked={config.application.minimizeToTray} onChange={value => setConfig({...config, application: {...config.application, minimizeToTray: value}})} />
         </div></section><div className="form-actions"><button className="primary" disabled={busy === 'save'}>Salvar configurações</button></div>
@@ -138,7 +151,7 @@ function App() {
         <div className="log-list">{logs.length ? [...logs].reverse().map(entry => <div className={`log ${entry.level}`} key={entry.id}><time>{new Date(entry.time).toLocaleTimeString('pt-BR')}</time><span>{entry.category}</span><p>{entry.message}</p></div>) : <div className="empty">Nenhum evento para este filtro.</div>}</div>
       </section>}
     </main>
-  </div>
+  </div></>
 }
 
 function PanelTitle({title, detail}: {title: string; detail: string}) { return <div className="panel-heading"><div><h2>{title}</h2><p>{detail}</p></div></div> }
