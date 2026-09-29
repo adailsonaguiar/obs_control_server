@@ -80,7 +80,7 @@ func TestClientConnectsListsAndChangesScene(t *testing.T) {
 	if err := client.SetSourceVisible(context.Background(), "Abertura", "Logo", false); err != nil {
 		t.Fatal(err)
 	}
-	preview, err := client.Screenshot(context.Background(), "Abertura", 640)
+	preview, err := client.Screenshot(context.Background(), "Abertura", 640, 50)
 	if err != nil || len(preview) != 4 || preview[0] != 0xff {
 		t.Fatalf("prévia inesperada: %v, erro: %v", preview, err)
 	}

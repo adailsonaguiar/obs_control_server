@@ -22,7 +22,7 @@ type OBSController interface {
 	Status(context.Context) (obs.Status, error)
 	Scenes(context.Context) ([]obs.Scene, error)
 	SetScene(context.Context, string) error
-	Screenshot(context.Context, string, int) ([]byte, error)
+	Screenshot(context.Context, string, int, int) ([]byte, error)
 	Sources(context.Context, string) ([]obs.Source, error)
 	SetSourceVisible(context.Context, string, string, bool) error
 	StartRecording(context.Context) error
@@ -174,13 +174,19 @@ func (m *Manager) obsPreview(writer http.ResponseWriter, request *http.Request) 
 		writeError(writer, http.StatusBadRequest, errors.New("informe sceneName"))
 		return
 	}
-	width := 960
+	width := 640
 	if value := request.URL.Query().Get("width"); value != "" {
 		if parsed, err := strconv.Atoi(value); err == nil {
 			width = parsed
 		}
 	}
-	image, err := m.obs.Screenshot(request.Context(), sceneName, width)
+	quality := 50
+	if value := request.URL.Query().Get("quality"); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			quality = parsed
+		}
+	}
+	image, err := m.obs.Screenshot(request.Context(), sceneName, width, quality)
 	if err != nil {
 		writeError(writer, http.StatusServiceUnavailable, err)
 		return

@@ -163,7 +163,7 @@ Por padrão, a API fica disponível em `http://127.0.0.1:3456`.
 | `GET` | `/obs/status` | Bearer | conexão e cena atual |
 | `GET` | `/obs/scenes` | Bearer | cenas disponíveis |
 | `POST` | `/obs/scene` | Bearer | troca a cena atual |
-| `GET` | `/obs/preview?sceneName=&width=` | Bearer | imagem JPEG da cena no ar |
+| `GET` | `/obs/preview?sceneName=&width=&quality=` | Bearer | imagem JPEG otimizada da cena no ar |
 | `GET` | `/obs/sources?sceneName=` | Bearer | fontes de uma cena |
 | `POST` | `/obs/source/show` | Bearer | exibe uma fonte |
 | `POST` | `/obs/source/hide` | Bearer | oculta uma fonte |

@@ -23,7 +23,7 @@ func (f *fakeOBS) Scenes(context.Context) ([]obs.Scene, error) {
 	return []obs.Scene{{Name: "Abertura"}, {Name: "Câmera"}}, nil
 }
 func (f *fakeOBS) SetScene(_ context.Context, name string) error { f.scene = name; return nil }
-func (f *fakeOBS) Screenshot(context.Context, string, int) ([]byte, error) {
+func (f *fakeOBS) Screenshot(context.Context, string, int, int) ([]byte, error) {
 	return []byte{0xff, 0xd8, 0xff, 0xd9}, nil
 }
 func (f *fakeOBS) Sources(context.Context, string) ([]obs.Source, error) {

@@ -209,18 +209,21 @@ func (c *Client) SetScene(ctx context.Context, name string) error {
 	return c.request(ctx, "SetCurrentProgramScene", map[string]any{"sceneName": name}, nil)
 }
 
-func (c *Client) Screenshot(ctx context.Context, sceneName string, width int) ([]byte, error) {
+func (c *Client) Screenshot(ctx context.Context, sceneName string, width, quality int) ([]byte, error) {
 	if strings.TrimSpace(sceneName) == "" {
 		return nil, errors.New("o nome da cena é obrigatório")
 	}
 	if width < 320 || width > 1920 {
-		width = 960
+		width = 640
+	}
+	if quality < 20 || quality > 90 {
+		quality = 50
 	}
 	var data struct {
 		ImageData string `json:"imageData"`
 	}
 	if err := c.request(ctx, "GetSourceScreenshot", map[string]any{
-		"sourceName": sceneName, "imageFormat": "jpg", "imageWidth": width, "imageCompressionQuality": 70,
+		"sourceName": sceneName, "imageFormat": "jpg", "imageWidth": width, "imageCompressionQuality": quality,
 	}, &data); err != nil {
 		return nil, err
 	}
