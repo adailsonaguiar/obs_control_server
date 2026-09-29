@@ -1,7 +1,7 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "obs-control-server",
-  "outputfilename": "obs-control-server",
+  "name": "obs-remote-deck",
+  "outputfilename": "OBS Remote Deck",
   "info": {
     "productName": "OBS Remote Deck",
     "productVersion": "0.0.1",

@@ -143,6 +143,67 @@ open build/bin/obs-control-server.app
 
 No Linux ou Windows, execute o binário correspondente gerado dentro de `build/bin`.
 
+## Gerar os instaladores
+
+Execute os comandos abaixo na raiz de `obs_control_server`.
+
+### macOS — DMG
+
+Gera a aplicação para Macs Apple Silicon e cria um DMG com atalho para a pasta Aplicativos. A pasta `build/dmg` é somente uma área temporária; o instalador final será criado em `dist`.
+
+```bash
+wails build -platform darwin/arm64 -o obs-remote-deck
+
+mkdir -p build/dmg dist
+cp -R build/bin/obs-remote-deck.app build/dmg/
+ln -sfn /Applications build/dmg/Applications
+
+hdiutil create \
+  -volname "OBS Remote Deck" \
+  -srcfolder build/dmg \
+  -ov -format UDZO \
+  dist/OBS-Remote-Deck.dmg
+
+ls -lh dist/OBS-Remote-Deck.dmg
+```
+
+Resultado:
+
+```text
+dist/OBS-Remote-Deck-2.0.0-macOS-arm64.dmg
+```
+
+É normal que `build/dmg` contenha somente `obs-remote-deck.app` e o atalho `Applications`: esse é exatamente o conteúdo colocado dentro do DMG pelo comando `hdiutil create`.
+
+### Windows — instalador EXE
+
+No macOS, instale uma única vez as ferramentas de compilação:
+
+```bash
+brew install mingw-w64 nsis
+```
+
+Depois gere o executável e o instalador:
+
+```bash
+CC=x86_64-w64-mingw32-gcc \
+CXX=x86_64-w64-mingw32-g++ \
+CGO_ENABLED=1 \
+wails build \
+  -platform windows/amd64 \
+  -nsis \
+  -o OBS-Remote-Deck.exe
+```
+
+Resultados:
+
+```text
+build/bin/OBS-Remote-Deck.exe
+build/bin/obs-control-server-amd64-installer.exe
+```
+
+O primeiro arquivo é a aplicação portátil. O segundo é o instalador com assistente, atalhos e desinstalador.
+
 ### Arquivos locais
 
 O aplicativo salva a configuração no diretório de configurações do usuário:

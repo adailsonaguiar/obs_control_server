@@ -1,0 +1,29 @@
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <key>CFBundlePackageType</key>
+        <string>APPL</string>
+        <key>CFBundleName</key>
+        <string>OBS Remote Deck</string>
+        <key>CFBundleExecutable</key>
+        <string>OBS Remote Deck</string>
+        <key>CFBundleIdentifier</key>
+        <string>com.wails.obs-remote-deck</string>
+        <key>CFBundleVersion</key>
+        <string>0.0.1</string>
+        <key>CFBundleGetInfoString</key>
+        <string>Servidor local de controle para OBS Studio</string>
+        <key>CFBundleShortVersionString</key>
+        <string>0.0.1</string>
+        <key>CFBundleIconFile</key>
+        <string>iconfile</string>
+        <key>LSMinimumSystemVersion</key>
+        <string>10.13.0</string>
+        <key>NSHighResolutionCapable</key>
+        <string>true</string>
+        <key>NSHumanReadableCopyright</key>
+        <string>Copyright.........</string>
+        
+        
+    </dict>
+</plist>
