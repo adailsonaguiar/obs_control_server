@@ -49,7 +49,7 @@ type Profile struct {
 
 func Default() Config {
 	cfg := Config{
-		Server:        Server{Host: "127.0.0.1", Port: 3456, AutoStart: true, APIToken: newToken()},
+		Server:        Server{Host: "0.0.0.0", Port: 3456, AutoStart: true, AllowLAN: true, APIToken: newToken()},
 		OBS:           OBS{Host: "localhost", Port: 4455, AutoConnect: true, AutoReconnect: true},
 		Application:   Application{MinimizeToTray: true},
 		ActiveProfile: "Padrão",

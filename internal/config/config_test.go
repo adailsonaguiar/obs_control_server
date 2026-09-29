@@ -12,7 +12,7 @@ func TestStoreCreatesAndPersistsDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := store.Get()
-	if cfg.Server.Host != "127.0.0.1" || cfg.Server.Port != 3456 || len(cfg.Server.APIToken) != 48 {
+	if cfg.Server.Host != "0.0.0.0" || !cfg.Server.AllowLAN || cfg.Server.Port != 3456 || len(cfg.Server.APIToken) != 48 {
 		t.Fatalf("defaults inesperados: %+v", cfg.Server)
 	}
 	cfg.Server.Port = 4567
@@ -28,11 +28,12 @@ func TestStoreCreatesAndPersistsDefaults(t *testing.T) {
 	}
 }
 
-func TestConfigRejectsExternalBind(t *testing.T) {
+func TestConfigRejectsExternalBindWithoutLAN(t *testing.T) {
 	cfg := Default()
+	cfg.Server.AllowLAN = false
 	cfg.Server.Host = "0.0.0.0"
 	if err := cfg.Validate(); err == nil {
-		t.Fatal("host externo deveria ser rejeitado na versão 1")
+		t.Fatal("host externo deveria ser rejeitado sem acesso LAN")
 	}
 }
 
@@ -65,7 +66,7 @@ func TestProfilesPersistAndSwitch(t *testing.T) {
 
 func TestLANRequiresExternalBind(t *testing.T) {
 	cfg := Default()
-	cfg.Server.AllowLAN = true
+	cfg.Server.Host = "127.0.0.1"
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("LAN deveria exigir host 0.0.0.0")
 	}
