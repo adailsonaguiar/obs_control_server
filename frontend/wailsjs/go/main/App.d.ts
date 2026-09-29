@@ -22,6 +22,8 @@ export function GetSnapshot():Promise<main.Snapshot>;
 
 export function GetSources(arg1:string):Promise<Array<obs.Source>>;
 
+export function GetVersion():Promise<string>;
+
 export function MinimizeToTray():Promise<void>;
 
 export function RestartServer():Promise<void>;

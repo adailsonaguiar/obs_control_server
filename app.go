@@ -17,6 +17,10 @@ import (
 	"obs-control-server/internal/server"
 )
 
+// AppVersion is the user-facing application version. It may be replaced at
+// build time with: -ldflags "-X main.AppVersion=2.1.0".
+var AppVersion = "0.0.1"
+
 type ConfigView struct {
 	Server        config.Server      `json:"server"`
 	Application   config.Application `json:"application"`
@@ -51,6 +55,10 @@ func NewApp() *App {
 	obsClient := obs.NewClient()
 	autostartManager, _ := autostart.New()
 	return &App{logs: eventLogs, obs: obsClient, server: server.New(obsClient, eventLogs), autostart: autostartManager}
+}
+
+func (a *App) GetVersion() string {
+	return AppVersion
 }
 
 func (a *App) startup(ctx context.Context) {

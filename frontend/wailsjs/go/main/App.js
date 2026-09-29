@@ -38,6 +38,10 @@ export function GetSources(arg1) {
   return window['go']['main']['App']['GetSources'](arg1);
 }
 
+export function GetVersion() {
+  return window['go']['main']['App']['GetVersion']();
+}
+
 export function MinimizeToTray() {
   return window['go']['main']['App']['MinimizeToTray']();
 }

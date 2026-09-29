@@ -2,6 +2,12 @@
   "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "obs-control-server",
   "outputfilename": "obs-control-server",
+  "info": {
+    "productName": "OBS Remote Deck",
+    "productVersion": "0.0.1",
+    "companyName": "Verolab Soluções em Tecnologia",
+    "comments": "Servidor local de controle para OBS Studio"
+  },
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",

@@ -16,6 +16,7 @@ function App() {
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [logFilter, setLogFilter] = useState('all')
   const [busy, setBusy] = useState('')
+  const [version, setVersion] = useState('')
   const [notice, setNotice] = useState<{kind: 'ok' | 'error'; text: string} | null>(null)
 
   useEffect(() => {
@@ -46,6 +47,7 @@ function App() {
 
   useEffect(() => {
     api().GetConfig().then(setConfig).catch(error => setNotice({kind: 'error', text: String(error)}))
+    api().GetVersion().then(setVersion).catch(() => undefined)
     refresh()
     const timer = window.setInterval(refresh, 3000)
     return () => window.clearInterval(timer)
@@ -95,6 +97,7 @@ function App() {
         <button className={tab === 'logs' ? 'active' : ''} onClick={() => setTab('logs')}><span>≡</span>Logs</button>
       </nav>
       <div className="sidebar-status"><i className={snapshot.serverRunning ? 'dot online' : 'dot'} /><div><strong>{snapshot.serverRunning ? 'Servidor online' : 'Servidor offline'}</strong><small>{snapshot.serverAddress || 'Sem endereço ativo'}</small></div></div>
+      <div className="app-version">OBS Remote Deck{version && <span>v{version}</span>}</div>
     </aside>
     <main>
       <header><div><p className="eyebrow">CONTROLE LOCAL</p><h1>{tab === 'dashboard' ? 'Painel de controle' : tab === 'settings' ? 'Configurações' : tab === 'instructions' ? 'Como conectar ao OBS' : 'Logs da aplicação'}</h1></div><span className="secure">● Somente localhost</span></header>

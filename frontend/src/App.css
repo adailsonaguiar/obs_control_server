@@ -93,6 +93,8 @@ nav button.active { color: #ffffff; background: #3b3b3b; border-color: #505050; 
 .sidebar-status div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .sidebar-status strong { font-size: 12px; }
 .sidebar-status small { color: #8e8e8e; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-version { display: flex; justify-content: space-between; gap: 8px; padding: 10px 4px 0; color: #696969; font-size: 9px; letter-spacing: .04em; }
+.app-version span { color: #858585; font-variant-numeric: tabular-nums; }
 
 main { grid-column: 2; padding: 32px 38px 48px; max-width: 1300px; width: 100%; margin: 0 auto; }
 header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
