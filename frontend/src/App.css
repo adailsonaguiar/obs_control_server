@@ -175,21 +175,28 @@ h1 { margin: 0; font-size: 26px; letter-spacing: -.02em; }
 .ptz-settings label { display: grid; gap: 7px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
 .ptz-settings input:not([type="range"]) { padding: 10px; border: 1px solid var(--border-strong); border-radius: 3px; background: #202020; color: var(--text); }
 .ptz-settings input[type="range"] { accent-color: var(--accent); }
-.ptz-controls { padding: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 35px; }
-.ptz-controls > div { display: grid; justify-items: center; gap: 14px; }
+.ptz-controls { padding: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ptz-control-section { min-width: 0; padding: 20px; display: grid; align-content: start; justify-items: center; gap: 18px; border: 1px solid var(--border); border-radius: 4px; background: #252525; }
+.ptz-control-heading { width: 100%; text-align: center; }
 .ptz-controls h3 { margin: 0; font-size: 13px; }
+.ptz-control-heading p { margin: 6px 0 0; color: var(--muted); font-size: 9px; }
+.ptz-joystick-tuning { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ptz-joystick-tuning label { display: grid; gap: 7px; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .05em; }
+.ptz-joystick-tuning input { width: 100%; accent-color: var(--accent); }
 .ptz-pad { display: grid; grid-template-columns: repeat(3, 58px); gap: 7px; }
 .ptz-pad button, .ptz-zoom button { min-height: 52px; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--surface-raised); color: var(--text); cursor: pointer; font-size: 20px; touch-action: none; user-select: none; }
+.ptz-pad button:nth-child(5) { color: #9fc5e3; font-size: 12px; }
 .ptz-pad button:active, .ptz-zoom button:active { border-color: var(--accent); background: #334b5e; }
 .ptz-joystick { position: relative; width: 220px; height: 220px; overflow: hidden; border: 1px solid var(--border-strong); border-radius: 50%; background: radial-gradient(circle, #363f46 0 12%, #292d30 13% 48%, #242424 49%); cursor: grab; touch-action: none; user-select: none; }
 .ptz-joystick.dragging { cursor: grabbing; border-color: var(--accent); }
 .ptz-axis { position: absolute; inset: 50% auto auto 50%; background: rgb(255 255 255 / 9%); pointer-events: none; }.ptz-axis.horizontal { width: 80%; height: 1px; transform: translate(-50%, -50%); }.ptz-axis.vertical { width: 1px; height: 80%; transform: translate(-50%, -50%); }
 .ptz-knob { position: absolute; left: calc(50% - 22px); top: calc(50% - 22px); width: 44px; height: 44px; border: 2px solid #8ec4ec; border-radius: 50%; background: #3d83b8; box-shadow: 0 5px 16px rgb(0 0 0 / 40%); transition: transform 90ms ease-out; pointer-events: none; }
 .ptz-joystick.dragging .ptz-knob { transition-duration: 55ms; }
-.ptz-zoom { display: grid; gap: 10px; width: min(100%, 220px); }
+.ptz-zoom-section { grid-column: 1 / -1; }
+.ptz-zoom { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
 .ptz-zoom button { padding: 0 18px; font-size: 13px; font-weight: 700; }
 .ptz-note { margin: 0; padding: 13px 18px; border-top: 1px solid var(--border); color: var(--muted); font-size: 10px; }
-@media (max-width: 760px) { .ptz-settings, .ptz-controls { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .ptz-settings, .ptz-controls, .ptz-zoom, .ptz-joystick-tuning { grid-template-columns: 1fr; }.ptz-zoom-section { grid-column: auto; } }
 
 .settings { display: grid; gap: 2px; }
 .profile-toolbar { padding: 14px 18px; display: flex; align-items: center; gap: 8px; }

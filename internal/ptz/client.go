@@ -53,6 +53,22 @@ func (c *Client) Zoom(ctx context.Context, host string, port int, direction stri
 	return c.send(ctx, host, port, []byte{0x81, 0x01, 0x04, 0x07, value, 0xff})
 }
 
+func (c *Client) Preset(ctx context.Context, host string, port int, action string, number int) error {
+	if number < 0 || number > 255 {
+		return errors.New("o número do preset deve estar entre 0 e 255")
+	}
+	var operation byte
+	switch strings.ToLower(strings.TrimSpace(action)) {
+	case "save":
+		operation = 0x01
+	case "recall":
+		operation = 0x02
+	default:
+		return errors.New("ação de preset inválida")
+	}
+	return c.send(ctx, host, port, []byte{0x81, 0x01, 0x04, 0x3f, operation, byte(number), 0xff})
+}
+
 func (c *Client) send(ctx context.Context, host string, port int, command []byte) error {
 	host = strings.TrimSpace(host)
 	if net.ParseIP(host) == nil {

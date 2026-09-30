@@ -7,7 +7,7 @@ import './App.css'
 const emptySnapshot: Snapshot = {serverRunning: false, serverAddress: '', obs: {connected: false, currentScene: '', recording: false, streaming: false}}
 
 function App() {
-  const [tab, setTab] = useState<'dashboard' | 'ptz' | 'settings' | 'instructions' | 'logs'>('dashboard')
+  const [tab, setTab] = useState<'dashboard' | 'ptz-arrows' | 'ptz-joystick' | 'settings' | 'instructions' | 'logs'>('dashboard')
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot)
   const [config, setConfig] = useState<Config | null>(null)
   const [password, setPassword] = useState('')
@@ -21,6 +21,8 @@ function App() {
   const [ptzHost, setPtzHost] = useState('192.168.1.100')
   const [ptzPort, setPtzPort] = useState(52381)
   const [ptzSpeed, setPtzSpeed] = useState(8)
+  const [ptzSensitivity, setPtzSensitivity] = useState(100)
+  const [ptzSmoothness, setPtzSmoothness] = useState(65)
 
   const sendPTZ = useCallback(async (kind: 'move' | 'zoom', direction: string, speedOverride?: number) => {
     try {
@@ -111,7 +113,8 @@ function App() {
       <div className="brand"><span className="brand-mark"><img src={logo} alt="" /></span><div><strong>OBS Remote Deck</strong><small>Local Server</small></div></div>
       <nav>
         <button className={tab === 'dashboard' ? 'active' : ''} onClick={() => setTab('dashboard')}><span>⌁</span>Painel</button>
-        <button className={tab === 'ptz' ? 'active' : ''} onClick={() => setTab('ptz')}><span>✥</span>Câmera PTZ</button>
+        <button className={tab === 'ptz-arrows' ? 'active' : ''} onClick={() => setTab('ptz-arrows')}><span>✥</span>PTZ por setas</button>
+        <button className={tab === 'ptz-joystick' ? 'active' : ''} onClick={() => setTab('ptz-joystick')}><span>◉</span>Joystick PTZ</button>
         <button className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}><span>⚙</span>Configurações</button>
         <button className={tab === 'instructions' ? 'active' : ''} onClick={() => setTab('instructions')}><span>?</span>Como conectar</button>
         <button className={tab === 'logs' ? 'active' : ''} onClick={() => setTab('logs')}><span>≡</span>Logs</button>
@@ -120,7 +123,7 @@ function App() {
       <div className="app-version">OBS Remote Deck{version && <span>v{version}</span>}</div>
     </aside>
     <main>
-      <header><div><p className="eyebrow">CONTROLE LOCAL</p><h1>{tab === 'dashboard' ? 'Painel de controle' : tab === 'ptz' ? 'Controle de câmera PTZ' : tab === 'settings' ? 'Configurações' : tab === 'instructions' ? 'Como conectar ao OBS' : 'Logs da aplicação'}</h1></div><span className="secure">● Somente localhost</span></header>
+      <header><div><p className="eyebrow">CONTROLE LOCAL</p><h1>{tab === 'dashboard' ? 'Painel de controle' : tab === 'ptz-arrows' ? 'PTZ por setas' : tab === 'ptz-joystick' ? 'Joystick PTZ' : tab === 'settings' ? 'Configurações' : tab === 'instructions' ? 'Como conectar ao OBS' : 'Logs da aplicação'}</h1></div><span className="secure">● Somente localhost</span></header>
       {notice && <div className={`notice ${notice.kind}`}>{notice.text}<button onClick={() => setNotice(null)}>×</button></div>}
 
       {tab === 'dashboard' && <>
@@ -149,16 +152,17 @@ function App() {
         </section>
       </>}
 
-      {tab === 'ptz' && <section className="panel ptz-panel">
+      {(tab === 'ptz-arrows' || tab === 'ptz-joystick') && <section className="panel ptz-panel">
         <PanelTitle title="VISCA over IP" detail="Segure um botão para mover a câmera; ao soltar, o movimento para." />
         <div className="ptz-settings">
           <label>IP da câmera<input value={ptzHost} inputMode="decimal" onChange={event => setPtzHost(event.target.value)} /></label>
           <label>Porta UDP<input type="number" min="1" max="65535" value={ptzPort} onChange={event => setPtzPort(Number(event.target.value))} /></label>
-          <label>Velocidade ({ptzSpeed})<input type="range" min="1" max="24" value={ptzSpeed} onChange={event => setPtzSpeed(Number(event.target.value))} /></label>
+          <label>{tab === 'ptz-arrows' ? 'Velocidade' : 'Velocidade máxima'} ({ptzSpeed})<input type="range" min="1" max="24" value={ptzSpeed} onChange={event => setPtzSpeed(Number(event.target.value))} /></label>
         </div>
         <div className="ptz-controls">
-          <div><h3>Movimento</h3><PTZJoystick onMove={(direction, speed) => sendPTZ('move', direction, speed)} onStop={() => sendPTZ('move', 'stop')} /></div>
-          <div><h3>Zoom</h3><div className="ptz-zoom"><PTZButton label="＋ Aproximar" start={() => sendPTZ('zoom', 'in')} stop={() => sendPTZ('zoom', 'stop')} /><PTZButton label="− Afastar" start={() => sendPTZ('zoom', 'out')} stop={() => sendPTZ('zoom', 'stop')} /></div></div>
+          {tab === 'ptz-arrows' && <div className="ptz-control-section"><div className="ptz-control-heading"><h3>Controle por setas</h3><p>Movimentos precisos em oito direções.</p></div><PTZDirectionPad onStart={direction => sendPTZ('move', direction)} onStop={() => sendPTZ('move', 'stop')} /></div>}
+          {tab === 'ptz-joystick' && <div className="ptz-control-section"><div className="ptz-control-heading"><h3>Joystick virtual</h3><p>Arraste para controlar direção e intensidade.</p></div><div className="ptz-joystick-tuning"><label>Sensibilidade ({ptzSensitivity}%)<input type="range" min="50" max="150" value={ptzSensitivity} onChange={event => setPtzSensitivity(Number(event.target.value))} /></label><label>Suavidade ({ptzSmoothness}%)<input type="range" min="0" max="100" value={ptzSmoothness} onChange={event => setPtzSmoothness(Number(event.target.value))} /></label></div><PTZJoystick maxSpeed={ptzSpeed} sensitivity={ptzSensitivity} smoothness={ptzSmoothness} onMove={(direction, speed) => sendPTZ('move', direction, speed)} onStop={() => sendPTZ('move', 'stop')} /></div>}
+          <div className="ptz-control-section ptz-zoom-section"><div className="ptz-control-heading"><h3>Zoom</h3><p>Aproxime ou afaste enquanto pressiona.</p></div><div className="ptz-zoom"><PTZButton label="＋ Aproximar" start={() => sendPTZ('zoom', 'in')} stop={() => sendPTZ('zoom', 'stop')} /><PTZButton label="− Afastar" start={() => sendPTZ('zoom', 'out')} stop={() => sendPTZ('zoom', 'stop')} /></div></div>
         </div>
         <p className="ptz-note">A câmera deve estar na mesma rede e com VISCA over IP habilitado. Porta padrão: 52381/UDP.</p>
       </section>}
@@ -221,40 +225,68 @@ function App() {
 function PanelTitle({title, detail}: {title: string; detail: string}) { return <div className="panel-heading"><div><h2>{title}</h2><p>{detail}</p></div></div> }
 function StatusCard({label, value, detail, good, icon}: {label: string; value: string; detail: string; good: boolean; icon: string}) { return <article className="status-card"><div className="status-icon">{icon}</div><div><p>{label}</p><h3>{value}</h3><small><i className={good ? 'dot online' : 'dot'} />{detail}</small></div></article> }
 function ActionButton({title, subtitle, icon, danger, disabled, onClick}: {title: string; subtitle: string; icon: string; danger?: boolean; disabled: boolean; onClick: () => void}) { return <button className={`action ${danger ? 'danger' : ''}`} disabled={disabled} onClick={onClick}><span>{icon}</span><div><strong>{title}</strong><small>{subtitle}</small></div><b>›</b></button> }
-function PTZButton({label, start, stop}: {label: string; start: () => void; stop: () => void}) { return <button onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); start() }} onPointerUp={stop} onPointerCancel={stop}>{label}</button> }
-function PTZJoystick({onMove, onStop}: {onMove: (direction: string, speed: number) => void; onStop: () => void}) {
+function PTZButton({label, start, stop, ...props}: {label: string; start: () => void; stop: () => void; 'aria-label'?: string}) { return <button {...props} title={props['aria-label']} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); start() }} onPointerUp={stop} onPointerCancel={stop}>{label}</button> }
+const ptzDirections = [
+  {direction: 'up-left', label: '↖', name: 'Mover para cima e esquerda'},
+  {direction: 'up', label: '↑', name: 'Mover para cima'},
+  {direction: 'up-right', label: '↗', name: 'Mover para cima e direita'},
+  {direction: 'left', label: '←', name: 'Mover para esquerda'},
+  {direction: 'stop', label: '■', name: 'Parar movimento'},
+  {direction: 'right', label: '→', name: 'Mover para direita'},
+  {direction: 'down-left', label: '↙', name: 'Mover para baixo e esquerda'},
+  {direction: 'down', label: '↓', name: 'Mover para baixo'},
+  {direction: 'down-right', label: '↘', name: 'Mover para baixo e direita'},
+]
+function PTZDirectionPad({onStart, onStop}: {onStart: (direction: string) => void; onStop: () => void}) { return <div className="ptz-pad" aria-label="Controle direcional">{ptzDirections.map(({direction, label, name}) => <PTZButton key={direction} label={label} start={() => onStart(direction)} stop={onStop} aria-label={name} />)}</div> }
+function PTZJoystick({maxSpeed, sensitivity, smoothness, onMove, onStop}: {maxSpeed: number; sensitivity: number; smoothness: number; onMove: (direction: string, speed: number) => void; onStop: () => void}) {
   const field = useRef<HTMLDivElement>(null)
   const lastCommand = useRef({direction: '', speed: 0, time: 0})
+  const target = useRef({x: 0, y: 0})
+  const current = useRef({x: 0, y: 0})
+  const radius = useRef(1)
+  const animation = useRef<number | null>(null)
   const [position, setPosition] = useState({x: 0, y: 0})
   const [dragging, setDragging] = useState(false)
+
+  useEffect(() => () => { if (animation.current !== null) cancelAnimationFrame(animation.current) }, [])
+
+  function animate() {
+    const alpha = .36 - smoothness * .0025
+    current.current.x += (target.current.x - current.current.x) * alpha
+    current.current.y += (target.current.y - current.current.y) * alpha
+    setPosition({x: current.current.x * radius.current, y: current.current.y * radius.current})
+
+    const strength = Math.min(1, Math.hypot(current.current.x, current.current.y))
+    const deadZone = .16 - (sensitivity - 50) * .0008
+    const travel = Math.max(0, (strength - deadZone) / (1 - deadZone))
+    if (travel === 0) {
+      if (lastCommand.current.direction) { lastCommand.current = {direction: '', speed: 0, time: 0}; onStop() }
+    } else {
+      const responseCurve = 1.9 - (sensitivity - 50) * .008
+      const speed = Math.max(1, Math.round(1 + Math.pow(travel, responseCurve) * (maxSpeed - 1)))
+      const direction = joystickDirection(current.current.x, current.current.y)
+      const now = performance.now()
+      if (direction !== lastCommand.current.direction || (speed !== lastCommand.current.speed && now - lastCommand.current.time >= 70)) {
+        lastCommand.current = {direction, speed, time: now}
+        onMove(direction, speed)
+      }
+    }
+    animation.current = requestAnimationFrame(animate)
+  }
 
   function update(event: PointerEvent<HTMLDivElement>) {
     if (!field.current) return
     const bounds = field.current.getBoundingClientRect()
-    const radius = Math.max(1, Math.min(bounds.width, bounds.height) / 2 - 24)
+    radius.current = Math.max(1, Math.min(bounds.width, bounds.height) / 2 - 24)
     const rawX = event.clientX - (bounds.left + bounds.width / 2)
     const rawY = event.clientY - (bounds.top + bounds.height / 2)
     const distance = Math.hypot(rawX, rawY)
-    const scale = distance > radius ? radius / distance : 1
-    const x = rawX * scale
-    const y = rawY * scale
-    setPosition({x, y})
-    const strength = Math.min(1, Math.hypot(x, y) / radius)
-    if (strength < .12) {
-      if (lastCommand.current.direction) { lastCommand.current = {direction: '', speed: 0, time: 0}; onStop() }
-      return
-    }
-    const direction = joystickDirection(x, y)
-    const speed = Math.max(1, Math.round(strength * 24))
-    const now = Date.now()
-    if (direction !== lastCommand.current.direction || Math.abs(speed - lastCommand.current.speed) >= 2 || now - lastCommand.current.time >= 100) {
-      lastCommand.current = {direction, speed, time: now}
-      onMove(direction, speed)
-    }
+    const scale = distance > radius.current ? radius.current / distance : 1
+    target.current = {x: rawX * scale / radius.current, y: rawY * scale / radius.current}
   }
 
-  function release() { setDragging(false); setPosition({x: 0, y: 0}); lastCommand.current = {direction: '', speed: 0, time: 0}; onStop() }
-  return <div ref={field} className={`ptz-joystick ${dragging ? 'dragging' : ''}`} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); setDragging(true); update(event) }} onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) update(event) }} onPointerUp={release} onPointerCancel={release}>
+  function release() { if (animation.current !== null) cancelAnimationFrame(animation.current); animation.current = null; target.current = {x: 0, y: 0}; current.current = {x: 0, y: 0}; setDragging(false); setPosition({x: 0, y: 0}); lastCommand.current = {direction: '', speed: 0, time: 0}; onStop() }
+  return <div ref={field} className={`ptz-joystick ${dragging ? 'dragging' : ''}`} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); setDragging(true); update(event); if (animation.current === null) animation.current = requestAnimationFrame(animate) }} onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) update(event) }} onPointerUp={release} onPointerCancel={release}>
     <span className="ptz-axis horizontal" /><span className="ptz-axis vertical" /><span className="ptz-knob" style={{transform: `translate(${position.x}px, ${position.y}px)`}} />
   </div>
 }
