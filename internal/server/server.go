@@ -49,6 +49,7 @@ type Settings struct {
 type PTZController interface {
 	Move(context.Context, string, int, string, int) error
 	Zoom(context.Context, string, int, string, int) error
+	Preset(context.Context, string, int, string, int) error
 }
 
 type Manager struct {
@@ -110,6 +111,7 @@ func (m *Manager) Start(settings Settings) error {
 	mux.Handle("POST /obs/stream/stop", m.auth(http.HandlerFunc(m.stopStreaming)))
 	mux.Handle("POST /ptz/move", m.auth(http.HandlerFunc(m.movePTZ)))
 	mux.Handle("POST /ptz/zoom", m.auth(http.HandlerFunc(m.zoomPTZ)))
+	mux.Handle("POST /ptz/preset", m.auth(http.HandlerFunc(m.presetPTZ)))
 	mux.Handle("GET /api/v1/telemetry", m.auth(http.HandlerFunc(m.telemetry)))
 	mux.Handle("GET /api/v1/audio/inputs", m.auth(http.HandlerFunc(m.audioInputs)))
 	mux.Handle("PATCH /api/v1/audio/inputs/{name}", m.auth(http.HandlerFunc(m.updateAudioInput)))
@@ -324,6 +326,27 @@ func (m *Manager) zoomPTZ(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 	m.logs.Add("ptz", "info", fmt.Sprintf("Comando de zoom PTZ %q enviado para %s:%d", body.Direction, body.Host, body.Port))
+	writeJSON(writer, http.StatusOK, map[string]any{"ok": true})
+}
+
+type ptzPresetCommand struct {
+	Host   string `json:"host"`
+	Port   int    `json:"port"`
+	Action string `json:"action"`
+	Number int    `json:"number"`
+}
+
+func (m *Manager) presetPTZ(writer http.ResponseWriter, request *http.Request) {
+	var body ptzPresetCommand
+	if err := decodeBody(writer, request, &body); err != nil {
+		writeError(writer, http.StatusBadRequest, err)
+		return
+	}
+	if err := m.ptz.Preset(request.Context(), body.Host, body.Port, body.Action, body.Number); err != nil {
+		writeError(writer, http.StatusBadRequest, err)
+		return
+	}
+	m.logs.Add("ptz", "info", fmt.Sprintf("Preset PTZ %d (%s) enviado para %s:%d", body.Number, body.Action, body.Host, body.Port))
 	writeJSON(writer, http.StatusOK, map[string]any{"ok": true})
 }
 

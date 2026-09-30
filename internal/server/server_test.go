@@ -15,7 +15,10 @@ import (
 )
 
 type fakeOBS struct{ scene string }
-type fakePTZ struct{ kind, direction string }
+type fakePTZ struct {
+	kind, direction, action string
+	number                  int
+}
 
 func (f *fakePTZ) Move(_ context.Context, _ string, _ int, direction string, _ int) error {
 	f.kind, f.direction = "move", direction
@@ -23,6 +26,10 @@ func (f *fakePTZ) Move(_ context.Context, _ string, _ int, direction string, _ i
 }
 func (f *fakePTZ) Zoom(_ context.Context, _ string, _ int, direction string, _ int) error {
 	f.kind, f.direction = "zoom", direction
+	return nil
+}
+func (f *fakePTZ) Preset(_ context.Context, _ string, _ int, action string, number int) error {
+	f.kind, f.action, f.number = "preset", action, number
 	return nil
 }
 
@@ -127,6 +134,28 @@ func TestPTZCommandRequiresTokenAndIsForwarded(t *testing.T) {
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK || controller.kind != "move" || controller.direction != "left" {
 		t.Fatalf("comando PTZ inesperado: status=%d kind=%s direction=%s", response.StatusCode, controller.kind, controller.direction)
+	}
+}
+
+func TestPTZPresetIsForwarded(t *testing.T) {
+	manager := New(&fakeOBS{}, logs.New(20))
+	controller := &fakePTZ{}
+	manager.ptz = controller
+	if err := manager.Start(Settings{Host: "127.0.0.1", Port: 0, Token: "secret"}); err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Stop(context.Background())
+	body := bytes.NewBufferString(`{"host":"192.168.1.20","port":52381,"action":"recall","number":4}`)
+	request, _ := http.NewRequest(http.MethodPost, "http://"+manager.Address()+"/ptz/preset", body)
+	request.Header.Set("Authorization", "Bearer secret")
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK || controller.kind != "preset" || controller.action != "recall" || controller.number != 4 {
+		t.Fatalf("preset PTZ inesperado: status=%d kind=%s action=%s number=%d", response.StatusCode, controller.kind, controller.action, controller.number)
 	}
 }
 
