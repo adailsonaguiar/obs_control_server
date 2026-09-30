@@ -157,8 +157,9 @@ function App() {
           <label>Velocidade ({ptzSpeed})<input type="range" min="1" max="24" value={ptzSpeed} onChange={event => setPtzSpeed(Number(event.target.value))} /></label>
         </div>
         <div className="ptz-controls">
-          <div><h3>Movimento</h3><PTZJoystick onMove={(direction, speed) => sendPTZ('move', direction, speed)} onStop={() => sendPTZ('move', 'stop')} /></div>
-          <div><h3>Zoom</h3><div className="ptz-zoom"><PTZButton label="＋ Aproximar" start={() => sendPTZ('zoom', 'in')} stop={() => sendPTZ('zoom', 'stop')} /><PTZButton label="− Afastar" start={() => sendPTZ('zoom', 'out')} stop={() => sendPTZ('zoom', 'stop')} /></div></div>
+          <div className="ptz-control-section"><div className="ptz-control-heading"><h3>Controle por setas</h3><p>Movimentos precisos em oito direções.</p></div><PTZDirectionPad onStart={direction => sendPTZ('move', direction)} onStop={() => sendPTZ('move', 'stop')} /></div>
+          <div className="ptz-control-section"><div className="ptz-control-heading"><h3>Joystick virtual</h3><p>Arraste para controlar direção e intensidade.</p></div><PTZJoystick onMove={(direction, speed) => sendPTZ('move', direction, speed)} onStop={() => sendPTZ('move', 'stop')} /></div>
+          <div className="ptz-control-section ptz-zoom-section"><div className="ptz-control-heading"><h3>Zoom</h3><p>Aproxime ou afaste enquanto pressiona.</p></div><div className="ptz-zoom"><PTZButton label="＋ Aproximar" start={() => sendPTZ('zoom', 'in')} stop={() => sendPTZ('zoom', 'stop')} /><PTZButton label="− Afastar" start={() => sendPTZ('zoom', 'out')} stop={() => sendPTZ('zoom', 'stop')} /></div></div>
         </div>
         <p className="ptz-note">A câmera deve estar na mesma rede e com VISCA over IP habilitado. Porta padrão: 52381/UDP.</p>
       </section>}
@@ -221,7 +222,19 @@ function App() {
 function PanelTitle({title, detail}: {title: string; detail: string}) { return <div className="panel-heading"><div><h2>{title}</h2><p>{detail}</p></div></div> }
 function StatusCard({label, value, detail, good, icon}: {label: string; value: string; detail: string; good: boolean; icon: string}) { return <article className="status-card"><div className="status-icon">{icon}</div><div><p>{label}</p><h3>{value}</h3><small><i className={good ? 'dot online' : 'dot'} />{detail}</small></div></article> }
 function ActionButton({title, subtitle, icon, danger, disabled, onClick}: {title: string; subtitle: string; icon: string; danger?: boolean; disabled: boolean; onClick: () => void}) { return <button className={`action ${danger ? 'danger' : ''}`} disabled={disabled} onClick={onClick}><span>{icon}</span><div><strong>{title}</strong><small>{subtitle}</small></div><b>›</b></button> }
-function PTZButton({label, start, stop}: {label: string; start: () => void; stop: () => void}) { return <button onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); start() }} onPointerUp={stop} onPointerCancel={stop}>{label}</button> }
+function PTZButton({label, start, stop, ...props}: {label: string; start: () => void; stop: () => void; 'aria-label'?: string}) { return <button {...props} title={props['aria-label']} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); start() }} onPointerUp={stop} onPointerCancel={stop}>{label}</button> }
+const ptzDirections = [
+  {direction: 'up-left', label: '↖', name: 'Mover para cima e esquerda'},
+  {direction: 'up', label: '↑', name: 'Mover para cima'},
+  {direction: 'up-right', label: '↗', name: 'Mover para cima e direita'},
+  {direction: 'left', label: '←', name: 'Mover para esquerda'},
+  {direction: 'stop', label: '■', name: 'Parar movimento'},
+  {direction: 'right', label: '→', name: 'Mover para direita'},
+  {direction: 'down-left', label: '↙', name: 'Mover para baixo e esquerda'},
+  {direction: 'down', label: '↓', name: 'Mover para baixo'},
+  {direction: 'down-right', label: '↘', name: 'Mover para baixo e direita'},
+]
+function PTZDirectionPad({onStart, onStop}: {onStart: (direction: string) => void; onStop: () => void}) { return <div className="ptz-pad" aria-label="Controle direcional">{ptzDirections.map(({direction, label, name}) => <PTZButton key={direction} label={label} start={() => onStart(direction)} stop={onStop} aria-label={name} />)}</div> }
 function PTZJoystick({onMove, onStop}: {onMove: (direction: string, speed: number) => void; onStop: () => void}) {
   const field = useRef<HTMLDivElement>(null)
   const lastCommand = useRef({direction: '', speed: 0, time: 0})
