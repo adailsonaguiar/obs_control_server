@@ -7,7 +7,7 @@ import './App.css'
 const emptySnapshot: Snapshot = {serverRunning: false, serverAddress: '', obs: {connected: false, currentScene: '', recording: false, streaming: false}}
 
 function App() {
-  const [tab, setTab] = useState<'dashboard' | 'ptz' | 'settings' | 'instructions' | 'logs'>('dashboard')
+  const [tab, setTab] = useState<'dashboard' | 'ptz-arrows' | 'ptz-joystick' | 'settings' | 'instructions' | 'logs'>('dashboard')
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot)
   const [config, setConfig] = useState<Config | null>(null)
   const [password, setPassword] = useState('')
@@ -111,7 +111,8 @@ function App() {
       <div className="brand"><span className="brand-mark"><img src={logo} alt="" /></span><div><strong>OBS Remote Deck</strong><small>Local Server</small></div></div>
       <nav>
         <button className={tab === 'dashboard' ? 'active' : ''} onClick={() => setTab('dashboard')}><span>⌁</span>Painel</button>
-        <button className={tab === 'ptz' ? 'active' : ''} onClick={() => setTab('ptz')}><span>✥</span>Câmera PTZ</button>
+        <button className={tab === 'ptz-arrows' ? 'active' : ''} onClick={() => setTab('ptz-arrows')}><span>✥</span>PTZ por setas</button>
+        <button className={tab === 'ptz-joystick' ? 'active' : ''} onClick={() => setTab('ptz-joystick')}><span>◉</span>Joystick PTZ</button>
         <button className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}><span>⚙</span>Configurações</button>
         <button className={tab === 'instructions' ? 'active' : ''} onClick={() => setTab('instructions')}><span>?</span>Como conectar</button>
         <button className={tab === 'logs' ? 'active' : ''} onClick={() => setTab('logs')}><span>≡</span>Logs</button>
@@ -120,7 +121,7 @@ function App() {
       <div className="app-version">OBS Remote Deck{version && <span>v{version}</span>}</div>
     </aside>
     <main>
-      <header><div><p className="eyebrow">CONTROLE LOCAL</p><h1>{tab === 'dashboard' ? 'Painel de controle' : tab === 'ptz' ? 'Controle de câmera PTZ' : tab === 'settings' ? 'Configurações' : tab === 'instructions' ? 'Como conectar ao OBS' : 'Logs da aplicação'}</h1></div><span className="secure">● Somente localhost</span></header>
+      <header><div><p className="eyebrow">CONTROLE LOCAL</p><h1>{tab === 'dashboard' ? 'Painel de controle' : tab === 'ptz-arrows' ? 'PTZ por setas' : tab === 'ptz-joystick' ? 'Joystick PTZ' : tab === 'settings' ? 'Configurações' : tab === 'instructions' ? 'Como conectar ao OBS' : 'Logs da aplicação'}</h1></div><span className="secure">● Somente localhost</span></header>
       {notice && <div className={`notice ${notice.kind}`}>{notice.text}<button onClick={() => setNotice(null)}>×</button></div>}
 
       {tab === 'dashboard' && <>
@@ -149,7 +150,7 @@ function App() {
         </section>
       </>}
 
-      {tab === 'ptz' && <section className="panel ptz-panel">
+      {(tab === 'ptz-arrows' || tab === 'ptz-joystick') && <section className="panel ptz-panel">
         <PanelTitle title="VISCA over IP" detail="Segure um botão para mover a câmera; ao soltar, o movimento para." />
         <div className="ptz-settings">
           <label>IP da câmera<input value={ptzHost} inputMode="decimal" onChange={event => setPtzHost(event.target.value)} /></label>
@@ -157,8 +158,8 @@ function App() {
           <label>Velocidade ({ptzSpeed})<input type="range" min="1" max="24" value={ptzSpeed} onChange={event => setPtzSpeed(Number(event.target.value))} /></label>
         </div>
         <div className="ptz-controls">
-          <div className="ptz-control-section"><div className="ptz-control-heading"><h3>Controle por setas</h3><p>Movimentos precisos em oito direções.</p></div><PTZDirectionPad onStart={direction => sendPTZ('move', direction)} onStop={() => sendPTZ('move', 'stop')} /></div>
-          <div className="ptz-control-section"><div className="ptz-control-heading"><h3>Joystick virtual</h3><p>Arraste para controlar direção e intensidade.</p></div><PTZJoystick onMove={(direction, speed) => sendPTZ('move', direction, speed)} onStop={() => sendPTZ('move', 'stop')} /></div>
+          {tab === 'ptz-arrows' && <div className="ptz-control-section"><div className="ptz-control-heading"><h3>Controle por setas</h3><p>Movimentos precisos em oito direções.</p></div><PTZDirectionPad onStart={direction => sendPTZ('move', direction)} onStop={() => sendPTZ('move', 'stop')} /></div>}
+          {tab === 'ptz-joystick' && <div className="ptz-control-section"><div className="ptz-control-heading"><h3>Joystick virtual</h3><p>Arraste para controlar direção e intensidade.</p></div><PTZJoystick onMove={(direction, speed) => sendPTZ('move', direction, speed)} onStop={() => sendPTZ('move', 'stop')} /></div>}
           <div className="ptz-control-section ptz-zoom-section"><div className="ptz-control-heading"><h3>Zoom</h3><p>Aproxime ou afaste enquanto pressiona.</p></div><div className="ptz-zoom"><PTZButton label="＋ Aproximar" start={() => sendPTZ('zoom', 'in')} stop={() => sendPTZ('zoom', 'stop')} /><PTZButton label="− Afastar" start={() => sendPTZ('zoom', 'out')} stop={() => sendPTZ('zoom', 'stop')} /></div></div>
         </div>
         <p className="ptz-note">A câmera deve estar na mesma rede e com VISCA over IP habilitado. Porta padrão: 52381/UDP.</p>
